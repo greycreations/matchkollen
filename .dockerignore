@@ -1,0 +1,11 @@
+node_modules
+dist
+.next
+.vinext
+.wrangler
+.sites-runtime
+.sites-checkout
+outputs
+work
+.git
+*.log
