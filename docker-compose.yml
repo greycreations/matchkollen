@@ -1,10 +1,14 @@
 services:
   matchkollen:
-    build: .
+    image: matchkollen:latest
+    pull_policy: build
+    build:
+      context: https://github.com/greycreations/matchkollen.git#main
+      dockerfile: Dockerfile
     container_name: matchkollen
     restart: unless-stopped
     ports:
-      - "8080:8787"
+      - "8060:8787"
     volumes:
       - matchkollen_data:/data
     healthcheck:

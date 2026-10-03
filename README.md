@@ -6,18 +6,18 @@ Matchkollen hjälper ett lag att planera matcher, välja matchtrupp, registrera 
 
 Kräver Docker Engine med Compose v2.
 
-1. Hämta projektmappen till servern.
+1. Spara `docker-compose.yml` i en valfri mapp på servern. Compose hämtar byggkontexten och `Dockerfile` från rotmappen i GitHub-repot.
 2. Starta appen från mappen:
 
    ```sh
    docker compose up --build -d
    ```
 
-3. Öppna `http://localhost:8080`.
+3. Öppna `http://localhost:8060`.
 4. Vid första starten visas konfigurationen där du skapar administratörskontot. Lösenordet ska ha minst 12 tecken.
 5. Logga in som admin och öppna **Användare** för att skapa konton och välja behörigheter för att lägga till, ändra eller ta bort uppgifter.
 
-Compose skapar den beständiga volymen `matchkollen_data`. Matchdata, konton och sessioner ligger i volymen och finns kvar när containern startas om eller byggs om. Migreringar tillämpas automatiskt vid containerstart. Porten går att ändra i `docker-compose.yml` om 8080 redan används.
+Compose skapar den beständiga volymen `matchkollen_data`. Matchdata, konton och sessioner ligger i volymen och finns kvar när containern startas om eller byggs om. Migreringar tillämpas automatiskt vid containerstart. Appen nås på port 8060. Ändra värdet på vänster sida i `8060:8787` om du vill använda en annan port.
 
 Appen har inget öppet självregistreringsflöde. Admin skapar konton och kan stänga av dem. Behörigheter kontrolleras på servern. Administratören har alltid full åtkomst.
 
