@@ -26,10 +26,12 @@ Appen har inget öppet självregistreringsflöde. Admin skapar konton och kan st
 - Sporter, åldersgrupper, lag och spelartrupper
 - Redigera eller arkivera lag och spelare utan att förlora matchhistorik
 - Planera matcher med datum, tid, plats, motståndare och två eller tre perioder
+- Planera cuper och sammandrag med flera matcher kopplade till samma grupp
 - Välja vilka spelare som deltar i varje match
 - Registrera och redigera mål med period, lag och målskytt
 - Registrera röda, gula och gröna kort per spelare och period, med kortstatistik per sport
-- Statistik per sport, med resultat, mål, skytteliga, närvaro och lagöversikt
+- Filtrera statistik per sport, lag, cup/sammandrag och match
+- Statistik med resultat, mål, skytteliga, närvaro och lagöversikt
 - Användarkonton med separata behörigheter för sporter/lag, spelare, matcher och matchhändelser
 
 ## Lokal utveckling
@@ -48,6 +50,7 @@ node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1
 node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0001_wet_gambit.sql
 node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0002_wandering_patch.sql
 node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0003_curvy_loa.sql
+node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0004_cup_competitions.sql
 ```
 
 Starta sedan förhandsvisningen med `npm run dev`. Lokal databasdata sparas i `.wrangler/state`.

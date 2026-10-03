@@ -22,9 +22,18 @@ export const players = sqliteTable("players", {
   active: integer("active").notNull().default(1),
 });
 
+export const competitions = sqliteTable("competitions", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  teamId: integer("team_id").notNull(),
+  name: text("name").notNull(),
+  kind: text("kind").notNull().default("cup"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
 export const matches = sqliteTable("matches", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   teamId: integer("team_id").notNull(),
+  competitionId: integer("competition_id"),
   homeName: text("home_name").notNull(),
   opponent: text("opponent").notNull(),
   scheduledAt: text("scheduled_at").notNull(),

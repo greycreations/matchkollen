@@ -7,12 +7,13 @@ import type { AuthUser, Permissions } from "@/lib/auth";
 type Sport = { id: number; name: string };
 type Team = { id: number; sportId: number; name: string; groupName: string; sportName?: string; active: number };
 type Player = { id: number; teamId: number; name: string; number: number | null; active: number };
-type Match = { id: number; teamId: number; homeName: string; opponent: string; scheduledAt: string; venue: string; periods: number; status: string; teamName?: string };
+type Competition = { id: number; teamId: number; name: string; kind: "cup" | "sammandrag"; createdAt: string };
+type Match = { id: number; teamId: number; competitionId: number | null; competitionName?: string | null; competitionKind?: "cup" | "sammandrag" | null; homeName: string; opponent: string; scheduledAt: string; venue: string; periods: number; status: string; teamName?: string };
 type Participant = { id: number; matchId: number; playerId: number; playerName: string; number: number | null; active: number };
 type Goal = { id: number; matchId: number; period: number; side: "home" | "away"; playerId: number | null; playerName: string | null; number: number | null; createdAt: string };
 type CardType = "red" | "yellow" | "green";
 type MatchCard = { id: number; matchId: number; period: number; playerId: number; cardType: CardType; createdAt: string; playerName: string; number: number | null };
-type Data = { sports: Sport[]; teams: Team[]; players: Player[]; matches: Match[]; participants: Participant[]; goals: Goal[]; cards: MatchCard[] };
+type Data = { sports: Sport[]; teams: Team[]; players: Player[]; competitions: Competition[]; matches: Match[]; participants: Participant[]; goals: Goal[]; cards: MatchCard[] };
 type Tab = "match" | "matcher" | "lag" | "statistik" | "anvandare";
 type ManagedUser = { id: number; name: string; email: string; role: "admin" | "user"; permissions: Permissions; active: number; createdAt: string; password?: string };
 const permissionLabels = [
@@ -22,7 +23,7 @@ const permissionLabels = [
   { key: "scores", label: "Resultat & matchhändelser" },
 ] as const;
 
-const blank: Data = { sports: [], teams: [], players: [], matches: [], participants: [], goals: [], cards: [] };
+const blank: Data = { sports: [], teams: [], players: [], competitions: [], matches: [], participants: [], goals: [], cards: [] };
 function emptyClientPermissions(): Permissions {
   return { teams: { create: false, edit: false, delete: false }, players: { create: false, edit: false, delete: false }, matches: { create: false, edit: false, delete: false }, scores: { create: false, edit: false, delete: false } };
 }
@@ -53,12 +54,18 @@ export default function MatchkollenApp({ user, onLogout }: { user: AuthUser; onL
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [matchForm, setMatchForm] = useState({ teamId: "", homeName: "", opponent: "", scheduledAt: "", venue: "", periods: "3" });
+  const [matchForm, setMatchForm] = useState({ teamId: "", homeName: "", opponent: "", scheduledAt: "", venue: "", periods: "3", competitionId: "" });
+  const [matchPlanningMode, setMatchPlanningMode] = useState<"match" | "competition">("match");
+  const [competitionForm, setCompetitionForm] = useState({ teamId: "", name: "", kind: "cup" as "cup" | "sammandrag" });
+  const [competitionMatches, setCompetitionMatches] = useState([{ opponent: "", scheduledAt: "", venue: "", periods: "3" }]);
   const [sportName, setSportName] = useState("");
   const [teamForm, setTeamForm] = useState({ sportId: "", groupName: "", name: "" });
   const [playerForm, setPlayerForm] = useState({ teamId: "", name: "", number: "" });
   const [setupTeamId, setSetupTeamId] = useState("");
   const [statisticsSportId, setStatisticsSportId] = useState("all");
+  const [statisticsTeamId, setStatisticsTeamId] = useState("all");
+  const [statisticsCompetitionId, setStatisticsCompetitionId] = useState("all");
+  const [statisticsMatchId, setStatisticsMatchId] = useState("all");
   const [accountUsers, setAccountUsers] = useState<ManagedUser[]>([]);
   const [newUser, setNewUser] = useState({ name: "", email: "", password: "" });
   const [newPermissions, setNewPermissions] = useState<Permissions>(emptyClientPermissions());
@@ -116,13 +123,21 @@ export default function MatchkollenApp({ user, onLogout }: { user: AuthUser; onL
   const awayScore = matchGoals.filter((g) => g.side === "away").length;
   const teamPlayers = data.players.filter((p) => p.teamId === Number(setupTeamId) && p.active === 1);
   const upcoming = useMemo(() => [...data.matches].sort((a,b) => a.scheduledAt.localeCompare(b.scheduledAt)), [data.matches]);
-  const statisticsMatches = data.matches.filter((m) => {
+  const statisticsTeams = data.teams.filter((t) => statisticsSportId === "all" || t.sportId === Number(statisticsSportId));
+  const statisticsCompetitions = data.competitions.filter((c) =>
+    (statisticsTeamId === "all" || c.teamId === Number(statisticsTeamId)) &&
+    (statisticsSportId === "all" || data.teams.find((t) => t.id === c.teamId)?.sportId === Number(statisticsSportId))
+  );
+  const statisticsMatchesForFilters = data.matches.filter((m) => {
     const sportMatches = statisticsSportId === "all" || data.teams.find((t) => t.id === m.teamId)?.sportId === Number(statisticsSportId);
-    return sportMatches && (m.status === "completed" || data.goals.some((g) => g.matchId === m.id));
+    const teamMatches = statisticsTeamId === "all" || m.teamId === Number(statisticsTeamId);
+    const competitionMatches = statisticsCompetitionId === "all" || m.competitionId === Number(statisticsCompetitionId);
+    return sportMatches && teamMatches && competitionMatches && (m.status === "completed" || data.goals.some((g) => g.matchId === m.id) || data.cards.some((card) => card.matchId === m.id));
   });
+  const statisticsMatches = statisticsMatchesForFilters.filter((m) => statisticsMatchId === "all" || m.id === Number(statisticsMatchId));
   const statisticsMatchIds = new Set(statisticsMatches.map((m) => m.id));
   const statisticsGoals = data.goals.filter((g) => statisticsMatchIds.has(g.matchId));
-  const statisticsCards = data.cards.filter((card) => statisticsSportId === "all" || data.teams.find((team) => team.id === data.matches.find((match) => match.id === card.matchId)?.teamId)?.sportId === Number(statisticsSportId));
+  const statisticsCards = data.cards.filter((card) => statisticsMatchIds.has(card.matchId));
   const statsMatchCount = Math.max(1, statisticsMatches.length);
   const cardTotals = { red: statisticsCards.filter((card) => card.cardType === "red").length, yellow: statisticsCards.filter((card) => card.cardType === "yellow").length, green: statisticsCards.filter((card) => card.cardType === "green").length };
   const scoreForMatch = (matchId: number, side: "home" | "away") => statisticsGoals.filter((g) => g.matchId === matchId && g.side === side).length;
@@ -141,24 +156,34 @@ export default function MatchkollenApp({ user, onLogout }: { user: AuthUser; onL
     teamLabel: data.teams.find((t) => t.id === p.teamId)?.name ?? "Lag",
     goals: statisticsGoals.filter((g) => g.playerId === p.id).length,
     appearances: new Set(data.participants.filter((x) => x.playerId === p.id && statisticsMatchIds.has(x.matchId)).map((x) => x.matchId)).size,
-  })).filter((p) => statisticsSportId === "all" || data.teams.find((t) => t.id === p.teamId)?.sportId === Number(statisticsSportId));
+  })).filter((p) => (statisticsSportId === "all" || data.teams.find((t) => t.id === p.teamId)?.sportId === Number(statisticsSportId)) && (statisticsTeamId === "all" || p.teamId === Number(statisticsTeamId)));
   const cardStats = scorerStats.map((player) => ({ ...player, red: statisticsCards.filter((card) => card.playerId === player.id && card.cardType === "red").length, yellow: statisticsCards.filter((card) => card.playerId === player.id && card.cardType === "yellow").length, green: statisticsCards.filter((card) => card.playerId === player.id && card.cardType === "green").length })).map((player) => ({ ...player, totalCards: player.red + player.yellow + player.green })).filter((player) => player.totalCards > 0).sort((a,b) => b.totalCards - a.totalCards || a.name.localeCompare(b.name));
   const topScorers = [...scorerStats].sort((a,b) => b.goals - a.goals || b.appearances - a.appearances || a.name.localeCompare(b.name)).slice(0, 8);
   const mostAppearances = [...scorerStats].sort((a,b) => b.appearances - a.appearances || b.goals - a.goals).slice(0, 8);
   const maxGoals = Math.max(1, ...topScorers.map((p) => p.goals));
   const can = (area: keyof Permissions, action: "create" | "edit" | "delete") => user.role === "admin" || user.permissions[area][action];
 
-  async function run(action: Record<string, unknown>, success?: string) {
+  async function run(action: Record<string, unknown>, success?: string): Promise<boolean> {
     setSaving(true); setError(""); setNotice("");
-    try { await api(action); await refresh(true); if (success) setNotice(success); }
-    catch (e) { setError(e instanceof Error ? e.message : "Ändringen kunde inte sparas."); }
+    try { await api(action); await refresh(true); if (success) setNotice(success); return true; }
+    catch (e) { setError(e instanceof Error ? e.message : "Ändringen kunde inte sparas."); return false; }
     finally { setSaving(false); }
   }
 
   async function createMatch(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    await run({ action: "createMatch", ...matchForm, periods: Number(matchForm.periods) }, "Matchen är sparad.");
+    const saved = await run({ action: "createMatch", ...matchForm, competitionId: matchForm.competitionId ? Number(matchForm.competitionId) : null, periods: Number(matchForm.periods) }, "Matchen är sparad.");
+    if (!saved) return;
     setMatchForm((f) => ({ ...f, opponent: "", scheduledAt: "", venue: "" }));
+    setTab("match");
+  }
+
+  async function createCompetition(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const saved = await run({ action: "createCompetition", ...competitionForm, matches: competitionMatches.map((match) => ({ ...match, periods: Number(match.periods) })) }, `${competitionForm.kind === "cup" ? "Cupen" : "Sammandraget"} och ${competitionMatches.length} matcher är sparade.`);
+    if (!saved) return;
+    setCompetitionForm((form) => ({ ...form, name: "" }));
+    setCompetitionMatches([{ opponent: "", scheduledAt: "", venue: "", periods: "3" }]);
     setTab("match");
   }
 
@@ -202,7 +227,7 @@ export default function MatchkollenApp({ user, onLogout }: { user: AuthUser; onL
           <div className="page-heading"><div><p className="eyebrow">MATCHCENTER</p><h1>{selected ? "Pågående match" : "Redo för match?"}</h1><p className="subheading">Registrera mål direkt från planen. Varje mål sparas med period och spelare.</p></div>{can("matches","create") && <button className="button button-primary" onClick={() => setTab("matcher")}><CirclePlus size={17} /> Ny match</button>}</div>
           {selected ? <>
             <section className="match-meta-card">
-              <div className="match-label"><span className={selected.status === "completed" ? "live-indicator completed-indicator" : "live-indicator"}>{selected.status === "completed" ? "AVSLUTAD" : selected.status === "live" ? "PÅGÅR" : "MATCH"}</span><span>{team?.sportName ?? data.sports.find((s) => s.id === team?.sportId)?.name ?? "Sport"}{team?.groupName ? ` · ${team.groupName}` : ""}</span></div>
+              <div className="match-label"><span className={selected.status === "completed" ? "live-indicator completed-indicator" : "live-indicator"}>{selected.status === "completed" ? "AVSLUTAD" : selected.status === "live" ? "PÅGÅR" : "MATCH"}</span><span>{team?.sportName ?? data.sports.find((s) => s.id === team?.sportId)?.name ?? "Sport"}{team?.groupName ? ` · ${team.groupName}` : ""}</span>{selected.competitionName && <span className="competition-tag">{selected.competitionKind === "sammandrag" ? "Sammandrag" : "Cup"} · {selected.competitionName}</span>}</div>
               <div className="match-line"><div className="match-title"><strong>{selected.homeName || team?.name || "Vårt lag"}</strong><span>mot</span><strong>{selected.opponent || "Motståndare"}</strong></div><div className="match-details"><span><CalendarDays size={15}/>{dateLabel(selected.scheduledAt)}</span>{selected.venue && <span><MapPin size={15}/>{selected.venue}</span>}<span><Users size={15}/>{lineup.length} spelare</span></div></div>
               {can("matches","edit") && <button className="icon-button edit-match" title="Ändra lag- och matchuppgifter" onClick={() => { const homeName = window.prompt("Vårt lags namn i den här matchen", selected.homeName); if (homeName === null) return; const opponent = window.prompt("Motståndarlag", selected.opponent); if (opponent !== null) void run({ action: "updateMatch", matchId: selected.id, homeName, opponent }); }}><Settings2 size={16}/></button>}
             </section>
@@ -211,7 +236,6 @@ export default function MatchkollenApp({ user, onLogout }: { user: AuthUser; onL
               <div className="score-center"><span className="score-vs">VS</span><span className="score-period">{periodUnit.toLocaleUpperCase("sv-SE")} {period} AV {selected.periods}</span></div>
               <div className="score-team away-score"><div className="score-team-name">{selected.opponent || "Motståndare"}</div><div className="score-number" aria-live="polite">{awayScore}</div><div className="score-actions"><button disabled={!can("scores","create")} onClick={() => void run({ action: "goal", matchId: selected.id, period, side: "away" })} aria-label="Öka motståndarnas resultat"><Plus size={19}/></button><button disabled={!can("scores","delete")} onClick={() => { const g = [...matchGoals].reverse().find((x) => x.side === "away"); if (g) void run({ action: "deleteGoal", goalId: g.id }); }} aria-label="Minska motståndarnas resultat"><Minus size={19}/></button></div></div>
             </section>
-            {can("matches","edit") && selected.status !== "completed" && <section className="finish-match-bar"><div><strong>Är matchen färdig?</strong><span>Mål och kort sparas löpande. Avsluta matchen för att markera den som färdig och ta med resultatet i statistiken.</span></div><button className="button button-primary" onClick={() => { if (window.confirm("Avsluta matchen? Resultatet och matchhändelserna sparas i statistiken.")) void run({ action: "finishMatch", matchId: selected.id }, "Matchen är avslutad. Resultatet finns nu i statistiken."); }}><Check size={17}/> Avsluta match & spara resultat</button></section>}
             <section className="period-section"><div className="section-kicker">VÄLJ {periodUnit.toLocaleUpperCase("sv-SE")}</div><div className="period-switcher">{Array.from({ length: selected.periods }, (_, i) => i + 1).map((p) => <button key={p} className={period === p ? "period-chip selected" : "period-chip"} onClick={() => setPeriod(p)}>{periodLabel(p)}</button>)}</div></section>
             <section className="roster-grid">
               <div className="roster-card"><div className="roster-heading"><div><span className="team-accent home-accent"/><div><h2>{selected.homeName || team?.name || "Vårt lag"}</h2><p>Tryck på spelaren för att registrera mål</p></div></div><button className="text-button" onClick={() => setTab("matcher")}>Trupp <ChevronDown size={15}/></button></div>
@@ -223,26 +247,37 @@ export default function MatchkollenApp({ user, onLogout }: { user: AuthUser; onL
                 {matchGoals.length > 8 && <p className="more-events">Visar de 8 senaste av {matchGoals.length} mål.</p>}
               </div>
             </section>
+            {can("matches","edit") && selected.status !== "completed" && <section className="finish-match-bar"><div><strong>Är matchen färdig?</strong><span>Mål och kort sparas löpande. Avsluta matchen för att markera den som färdig och ta med resultatet i statistiken.</span></div><button className="button button-primary" onClick={() => { if (window.confirm("Avsluta matchen? Resultatet och matchhändelserna sparas i statistiken.")) void run({ action: "finishMatch", matchId: selected.id }, "Matchen är avslutad. Resultatet finns nu i statistiken."); }}><Check size={17}/> Avsluta match & spara resultat</button></section>}
           </> : <section className="empty-state"><div className="empty-icon"><Trophy size={25}/></div><h2>Välj eller skapa en match</h2><p>Förbered en match med datum, plats och trupp. När matchen startar kan du räkna mål och föra matchlogg här.</p><button className="button button-primary" onClick={() => setTab(data.matches.length ? "matcher" : "lag")}><CirclePlus size={17}/>{data.matches.length ? "Visa matcher" : "Lägg till lag först"}</button></section>}
         </>}
 
         {tab === "matcher" && <>
           <div className="page-heading"><div><p className="eyebrow">SPELPROGRAM</p><h1>Matcher</h1><p className="subheading">Planera kommande matcher och välj vilka som spelar.</p></div></div>
           <div className="management-grid">
-            <section className="panel form-panel"><div className="panel-heading"><span className="panel-icon"><CirclePlus size={17}/></span><div><h2>Planera en match</h2><p>Matchen sparas tillsammans med resultatet.</p></div></div>
-              <form className="form-stack" onSubmit={createMatch} aria-disabled={!can("matches","create")}>
-                <label>Lag<select required value={matchForm.teamId} onChange={(e) => setMatchForm((f) => ({ ...f, teamId: e.target.value, homeName: data.teams.find((t) => String(t.id) === e.target.value)?.name ?? "" }))}><option value="">Välj lag</option>{data.teams.filter((t) => t.active === 1).map((t) => <option key={t.id} value={t.id}>{t.name}{t.groupName ? ` · ${t.groupName}` : ""}</option>)}</select></label>
+            <section className="panel form-panel"><div className="panel-heading"><span className="panel-icon"><CirclePlus size={17}/></span><div><h2>{matchPlanningMode === "match" ? "Planera en match" : "Planera cup eller sammandrag"}</h2><p>{matchPlanningMode === "match" ? "Matchen sparas tillsammans med resultatet." : "Koppla ihop lagets matcher under en gemensam grupp."}</p></div></div>
+              <div className="planning-mode-tabs" role="tablist" aria-label="Vad vill du planera?"><button type="button" role="tab" aria-selected={matchPlanningMode === "match"} className={matchPlanningMode === "match" ? "planning-mode active" : "planning-mode"} onClick={() => setMatchPlanningMode("match")}>En match</button><button type="button" role="tab" aria-selected={matchPlanningMode === "competition"} className={matchPlanningMode === "competition" ? "planning-mode active" : "planning-mode"} onClick={() => setMatchPlanningMode("competition")}>Cup / sammandrag</button></div>
+              {matchPlanningMode === "match" ? <form className="form-stack" onSubmit={createMatch} aria-disabled={!can("matches","create")}>
+                <label>Lag<select required value={matchForm.teamId} onChange={(e) => setMatchForm((f) => ({ ...f, teamId: e.target.value, homeName: data.teams.find((t) => String(t.id) === e.target.value)?.name ?? "", competitionId: "" }))}><option value="">Välj lag</option>{data.teams.filter((t) => t.active === 1).map((t) => <option key={t.id} value={t.id}>{t.name}{t.groupName ? ` · ${t.groupName}` : ""}</option>)}</select></label>
                 <label>Vårt lagnamn i matchen<input value={matchForm.homeName} onChange={(e) => setMatchForm((f) => ({ ...f, homeName: e.target.value }))} placeholder="Exempel: P10 Blå" /></label>
+                {data.competitions.some((competition) => String(competition.teamId) === matchForm.teamId) && <label>Tillhör cup eller sammandrag<select value={matchForm.competitionId} onChange={(e) => setMatchForm((f) => ({ ...f, competitionId: e.target.value }))}><option value="">Fristående match</option>{data.competitions.filter((competition) => String(competition.teamId) === matchForm.teamId).map((competition) => <option key={competition.id} value={competition.id}>{competition.name}</option>)}</select></label>}
                 <label>Motståndare<input required value={matchForm.opponent} onChange={(e) => setMatchForm((f) => ({ ...f, opponent: e.target.value }))} placeholder="Motståndarlag" /></label>
                 <div className="form-row"><label>Datum och tid<input required type="datetime-local" value={matchForm.scheduledAt} onChange={(e) => setMatchForm((f) => ({ ...f, scheduledAt: e.target.value }))}/></label><label>Perioder<select value={matchForm.periods} onChange={(e) => setMatchForm((f) => ({ ...f, periods: e.target.value }))}><option value="2">2 perioder</option><option value="3">3 perioder</option></select></label></div>
                 <label>Plats<input value={matchForm.venue} onChange={(e) => setMatchForm((f) => ({ ...f, venue: e.target.value }))} placeholder="Hall eller plan" /></label>
                 <button className="button button-primary full-button" disabled={saving || !data.teams.length || !can("matches","create")}><CalendarDays size={16}/>{saving ? "Sparar …" : "Spara match"}</button>
                 {!data.teams.length && <p className="form-hint">Lägg först till ett lag under Lag & spelare.</p>}
-              </form>
+              </form> : <form className="form-stack competition-form" onSubmit={createCompetition} aria-disabled={!can("matches","create")}>
+                <label>Lag<select required value={competitionForm.teamId} onChange={(e) => setCompetitionForm((f) => ({ ...f, teamId: e.target.value }))}><option value="">Välj lag</option>{data.teams.filter((t) => t.active === 1).map((t) => <option key={t.id} value={t.id}>{t.name}{t.groupName ? ` · ${t.groupName}` : ""}</option>)}</select></label>
+                <div className="form-row"><label>Namn<input required value={competitionForm.name} onChange={(e) => setCompetitionForm((f) => ({ ...f, name: e.target.value }))} placeholder="Exempel: Vårspelen" /></label><label>Typ<select value={competitionForm.kind} onChange={(e) => setCompetitionForm((f) => ({ ...f, kind: e.target.value as "cup" | "sammandrag" }))}><option value="cup">Cup</option><option value="sammandrag">Sammandrag</option></select></label></div>
+                <div className="competition-match-heading"><strong>Matcher i gruppen</strong><span>{competitionMatches.length} {competitionMatches.length === 1 ? "match" : "matcher"}</span></div>
+                {competitionMatches.map((match, index) => <div className="competition-match-form" key={index}><div className="competition-match-title"><strong>Match {index + 1}</strong>{competitionMatches.length > 1 && <button type="button" className="delete-player" aria-label={`Ta bort match ${index + 1}`} onClick={() => setCompetitionMatches((list) => list.filter((_, i) => i !== index))}><X size={14}/></button>}</div><label>Motståndare<input required value={match.opponent} onChange={(e) => setCompetitionMatches((list) => list.map((item, i) => i === index ? { ...item, opponent: e.target.value } : item))} placeholder="Motståndarlag" /></label><div className="form-row"><label>Datum och tid<input required type="datetime-local" value={match.scheduledAt} onChange={(e) => setCompetitionMatches((list) => list.map((item, i) => i === index ? { ...item, scheduledAt: e.target.value } : item))}/></label><label>Perioder<select value={match.periods} onChange={(e) => setCompetitionMatches((list) => list.map((item, i) => i === index ? { ...item, periods: e.target.value } : item))}><option value="2">2 perioder</option><option value="3">3 perioder</option></select></label></div><label>Plats<input value={match.venue} onChange={(e) => setCompetitionMatches((list) => list.map((item, i) => i === index ? { ...item, venue: e.target.value } : item))} placeholder="Hall eller plan" /></label></div>)}
+                <button type="button" className="button button-secondary full-button" onClick={() => setCompetitionMatches((list) => [...list, { opponent: "", scheduledAt: "", venue: "", periods: "3" }])}><CirclePlus size={15}/> Lägg till match</button>
+                <button className="button button-primary full-button" disabled={saving || !data.teams.length || !can("matches","create")}><CalendarDays size={16}/>{saving ? "Sparar …" : `Spara ${competitionForm.kind === "cup" ? "cup" : "sammandrag"} och matcher`}</button>
+                {!data.teams.length && <p className="form-hint">Lägg först till ett lag under Lag & spelare.</p>}
+              </form>}
             </section>
             <section className="panel schedule-panel"><div className="panel-heading"><span className="panel-icon soft"><CalendarDays size={17}/></span><div><h2>Dina matcher</h2><p>{data.matches.length} sparade matcher</p></div></div>
               {upcoming.length ? <div className="match-list">{upcoming.map((m) => { const t = data.teams.find((x) => x.id === m.teamId); const gs = data.goals.filter((g) => g.matchId === m.id); return <article className={m.id === selectedId ? "match-row selected" : "match-row"} key={m.id}>
-                  <button className="match-row-main" onClick={() => { setSelectedId(m.id); setPeriod(1); setTab("match"); }}><span className="match-date-block"><b>{new Date(m.scheduledAt).getDate()}</b><small>{new Intl.DateTimeFormat("sv-SE", { month: "short" }).format(new Date(m.scheduledAt))}</small></span><span className="match-row-details"><b>{m.homeName || t?.name || "Vårt lag"} <span>–</span> {m.opponent}</b><small>{dateLabel(m.scheduledAt)}{m.venue ? ` · ${m.venue}` : ""}</small><small>{t?.sportName ?? data.sports.find((s) => s.id === t?.sportId)?.name ?? "Sport"} · {m.periods} perioder</small></span><span className="match-result">{gs.filter((g) => g.side === "home").length} – {gs.filter((g) => g.side === "away").length}</span></button>
+                  <button className="match-row-main" onClick={() => { setSelectedId(m.id); setPeriod(1); setTab("match"); }}><span className="match-date-block"><b>{new Date(m.scheduledAt).getDate()}</b><small>{new Intl.DateTimeFormat("sv-SE", { month: "short" }).format(new Date(m.scheduledAt))}</small></span><span className="match-row-details"><b>{m.homeName || t?.name || "Vårt lag"} <span>–</span> {m.opponent}</b><small>{dateLabel(m.scheduledAt)}{m.venue ? ` · ${m.venue}` : ""}</small><small>{t?.sportName ?? data.sports.find((s) => s.id === t?.sportId)?.name ?? "Sport"} · {m.periods} perioder</small>{m.competitionName && <small className="competition-tag">{m.competitionKind === "sammandrag" ? "Sammandrag" : "Cup"} · {m.competitionName}</small>}</span><span className="match-result">{gs.filter((g) => g.side === "home").length} – {gs.filter((g) => g.side === "away").length}</span></button>
                   <div className="lineup-picker"><span>Spelartrupp{!can("matches","edit") ? " · endast visning" : ""}</span><details><summary>{data.participants.filter((p) => p.matchId === m.id && p.active === 1).length} valda <ChevronDown size={13}/></summary><div className="lineup-popover">{data.players.filter((p) => p.teamId === m.teamId && p.active === 1).length ? data.players.filter((p) => p.teamId === m.teamId && p.active === 1).map((p) => { const checked = data.participants.some((x) => x.matchId === m.id && x.playerId === p.id); return <label key={p.id} className="lineup-option"><input type="checkbox" checked={checked} disabled={!can("matches","edit")} onChange={() => void togglePlayerFor(m.id, p.id, checked, run)}/><span>{p.number !== null ? `#${p.number} ` : ""}{p.name}</span></label>; }) : <p className="mini-empty">Lägg till spelare under Lag & spelare.</p>}</div></details></div>
                   {can("matches","delete") && <button className="remove-match" title="Ta bort match" onClick={() => { if (window.confirm(`Ta bort matchen mot ${m.opponent} och dess matchlogg?`)) void run({ action: "deleteMatch", matchId: m.id }, "Matchen är borttagen."); }}><Trash2 size={15}/></button>}
                 </article>; })}</div> : <div className="simple-empty">Inga matcher planerade ännu. Skapa den första med formuläret.</div>}
@@ -251,7 +286,13 @@ export default function MatchkollenApp({ user, onLogout }: { user: AuthUser; onL
         </>}
 
         {tab === "statistik" && <>
-          <div className="page-heading statistics-heading"><div><p className="eyebrow">SÄSONGEN I SIFFROR</p><h1>Statistik</h1><p className="subheading">Små steg, stora mål. Följ matcherna och fira lagets framsteg.</p></div><label className="sport-filter">Visa sport<select value={statisticsSportId} onChange={(e) => setStatisticsSportId(e.target.value)}><option value="all">Alla sporter</option>{data.sports.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label></div>
+          <div className="page-heading statistics-heading"><div><p className="eyebrow">SÄSONGEN I SIFFROR</p><h1>Statistik</h1><p className="subheading">Små steg, stora mål. Följ matcherna och fira lagets framsteg.</p></div></div>
+          <div className="statistics-filters" aria-label="Filtrera statistik">
+            <label>Sport<select value={statisticsSportId} onChange={(e) => { setStatisticsSportId(e.target.value); setStatisticsTeamId("all"); setStatisticsCompetitionId("all"); setStatisticsMatchId("all"); }}><option value="all">Alla sporter</option>{data.sports.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
+            <label>Lag<select value={statisticsTeamId} onChange={(e) => { setStatisticsTeamId(e.target.value); setStatisticsCompetitionId("all"); setStatisticsMatchId("all"); }}><option value="all">Alla lag</option>{statisticsTeams.map((team) => <option key={team.id} value={team.id}>{team.name}{team.groupName ? ` · ${team.groupName}` : ""}</option>)}</select></label>
+            <label>Cup / sammandrag<select value={statisticsCompetitionId} onChange={(e) => { setStatisticsCompetitionId(e.target.value); setStatisticsMatchId("all"); }}><option value="all">Alla cuper och matcher</option>{statisticsCompetitions.map((competition) => <option key={competition.id} value={competition.id}>{competition.name}</option>)}</select></label>
+            <label>Match<select value={statisticsMatchId} onChange={(e) => setStatisticsMatchId(e.target.value)}><option value="all">Alla matcher</option>{statisticsMatchesForFilters.map((match) => <option key={match.id} value={match.id}>{match.homeName} – {match.opponent} · {new Intl.DateTimeFormat("sv-SE", { day: "numeric", month: "short" }).format(new Date(match.scheduledAt))}</option>)}</select></label>
+          </div>
           {statisticsMatches.length || statisticsCards.length ? <>
             <div className="stats-kpis">
               <article className="stat-kpi"><span className="kpi-icon blue-kpi"><CalendarDays size={17}/></span><div><small>Spelade matcher</small><b>{statisticsMatches.length}</b></div><span className="kpi-foot">{wins} vinster · {draws} oavgjorda · {losses} förluster</span></article>
@@ -262,7 +303,7 @@ export default function MatchkollenApp({ user, onLogout }: { user: AuthUser; onL
             <div className="stats-dashboard-grid">
               <section className="panel stats-panel"><div className="stats-panel-title"><div><span className="panel-icon"><BarChart3 size={17}/></span><div><h2>Matchresultat</h2><p>Utfallet för våra lag</p></div></div></div><div className="outcome-chart"><div className="outcome-total" role="img" aria-label={`Matchutfall: ${wins} vinster, ${draws} oavgjorda och ${losses} förluster`} style={{ background: outcomeGradient }}><b>{statisticsMatches.length}</b><span>matcher</span></div><div className="outcome-bars"><div className="outcome-item"><span><i className="outcome-dot win-dot"/>Vinst<b>{wins}</b></span><div className="outcome-track"><i className="win-bar" style={{ width: `${Math.max(wins ? 5 : 0, wins / statsMatchCount * 100)}%` }}/></div></div><div className="outcome-item"><span><i className="outcome-dot draw-dot"/>Oavgjort<b>{draws}</b></span><div className="outcome-track"><i className="draw-bar" style={{ width: `${Math.max(draws ? 5 : 0, draws / statsMatchCount * 100)}%` }}/></div></div><div className="outcome-item"><span><i className="outcome-dot loss-dot"/>Förlust<b>{losses}</b></span><div className="outcome-track"><i className="loss-bar" style={{ width: `${Math.max(losses ? 5 : 0, losses / statsMatchCount * 100)}%` }}/></div></div></div></div><div className="goals-summary"><span>⚽</span><div><b>{goalsFor} – {goalsAgainst}</b><small>Målskillnad totalt</small></div><strong className={goalsFor >= goalsAgainst ? "positive-difference" : "negative-difference"}>{goalsFor - goalsAgainst > 0 ? "+" : ""}{goalsFor - goalsAgainst}</strong></div></section>
               <section className="panel stats-panel"><div className="stats-panel-title"><div><span className="panel-icon soft"><Medal size={17}/></span><div><h2>Skytteligan</h2><p>Flest registrerade mål</p></div></div></div><div className="scorer-chart">{topScorers.filter((p) => p.goals > 0).length ? topScorers.filter((p) => p.goals > 0).slice(0, 6).map((p, i) => <div className="scorer-item" key={p.id}><span className={`scorer-rank rank-${i + 1}`}>{i === 0 ? "★" : i + 1}</span><div className="scorer-info"><span><b>{p.name}</b><small>{p.teamLabel}</small></span><strong>{p.goals}</strong><div className="scorer-track"><i style={{ width: `${Math.max(5, p.goals / maxGoals * 100)}%` }}/></div></div></div>) : <p className="chart-empty">Inga spelarmål ännu. Tryck på en spelares namn under matchen så dyker skytteligans första mål upp här.</p>}</div></section>
-              <section className="panel stats-panel team-stats-panel"><div className="stats-panel-title"><div><span className="panel-icon green-icon"><Trophy size={17}/></span><div><h2>Lagöversikt</h2><p>Matcher, mål och vinstsvit</p></div></div></div><div className="team-stat-table"><div className="team-stat-head"><span>Lag</span><span>Matcher</span><span>Mål</span><span>V–O–F</span></div>{data.teams.filter((t) => statisticsSportId === "all" || t.sportId === Number(statisticsSportId)).map((t) => { const tm = statisticsMatches.filter((m) => m.teamId === t.id); const gf = tm.reduce((sum,m) => sum + scoreForMatch(m.id,"home"),0); const ga = tm.reduce((sum,m) => sum + scoreForMatch(m.id,"away"),0); const tw = tm.filter((m) => scoreForMatch(m.id,"home") > scoreForMatch(m.id,"away")).length; const td = tm.filter((m) => scoreForMatch(m.id,"home") === scoreForMatch(m.id,"away")).length; const tl = tm.length-tw-td; return <div className="team-stat-row" key={t.id}><span className="team-stat-name"><i>{t.name.slice(0,1).toUpperCase()}</i><span><b>{t.name}{t.groupName ? ` · ${t.groupName}` : ""}</b><small>{t.sportName ?? data.sports.find((s)=>s.id===t.sportId)?.name}</small></span></span><b>{tm.length}</b><b>{gf}–{ga}</b><span className="record-chip">{tw}–{td}–{tl}</span></div>; })}</div></section>
+              <section className="panel stats-panel team-stats-panel"><div className="stats-panel-title"><div><span className="panel-icon green-icon"><Trophy size={17}/></span><div><h2>Lagöversikt</h2><p>Matcher, mål och vinstsvit</p></div></div></div><div className="team-stat-table"><div className="team-stat-head"><span>Lag</span><span>Matcher</span><span>Mål</span><span>V–O–F</span></div>{statisticsTeams.filter((t) => statisticsTeamId === "all" || t.id === Number(statisticsTeamId)).map((t) => { const tm = statisticsMatches.filter((m) => m.teamId === t.id); const gf = tm.reduce((sum,m) => sum + scoreForMatch(m.id,"home"),0); const ga = tm.reduce((sum,m) => sum + scoreForMatch(m.id,"away"),0); const tw = tm.filter((m) => scoreForMatch(m.id,"home") > scoreForMatch(m.id,"away")).length; const td = tm.filter((m) => scoreForMatch(m.id,"home") === scoreForMatch(m.id,"away")).length; const tl = tm.length-tw-td; return <div className="team-stat-row" key={t.id}><span className="team-stat-name"><i>{t.name.slice(0,1).toUpperCase()}</i><span><b>{t.name}{t.groupName ? ` · ${t.groupName}` : ""}</b><small>{t.sportName ?? data.sports.find((s)=>s.id===t.sportId)?.name}</small></span></span><b>{tm.length}</b><b>{gf}–{ga}</b><span className="record-chip">{tw}–{td}–{tl}</span></div>; })}</div></section>
               <section className="panel stats-panel attendance-panel"><div className="stats-panel-title"><div><span className="panel-icon purple-icon"><Users size={17}/></span><div><h2>Närvaro & delaktighet</h2><p>Matcher spelade och mål per spelare</p></div></div></div><div className="table-scroll"><table className="data-table"><thead><tr><th>Spelare</th><th>Matcher</th><th>Mål</th><th>Mål / match</th></tr></thead><tbody>{[...scorerStats].sort((a,b) => b.appearances - a.appearances || b.goals-a.goals).map((p) => <tr key={p.id}><td><b>{p.name}</b><small>{p.teamLabel}</small></td><td>{p.appearances}</td><td>{p.goals}</td><td>{p.appearances ? (p.goals/p.appearances).toFixed(2).replace(".", ",") : "–"}</td></tr>)}</tbody></table></div>{mostAppearances[0]?.appearances ? <div className="record-callout"><Medal size={17}/><span><b>{mostAppearances[0].name}</b> leder närvaroligan med {mostAppearances[0].appearances} matcher!</span></div> : <p className="chart-empty">Välj spelare till matchtruppen så räknas deras matcher här.</p>}</section>
               <section className="panel stats-panel card-stats-panel"><div className="stats-panel-title"><div><span className="panel-icon card-stats-icon"><Shield size={17}/></span><div><h2>Kort per spelare</h2><p>Fair play och matchdisciplin · {statisticsSportId === "all" ? "alla sporter" : data.sports.find((sport) => sport.id === Number(statisticsSportId))?.name}</p></div></div></div><div className="card-total-strip"><div><span className="card-swatch red-swatch"/><b>{cardTotals.red}</b><small>Röda</small></div><div><span className="card-swatch yellow-swatch"/><b>{cardTotals.yellow}</b><small>Gula</small></div><div><span className="card-swatch green-swatch"/><b>{cardTotals.green}</b><small>Gröna</small></div></div>{cardStats.length ? <div className="table-scroll"><table className="data-table card-stats-table"><thead><tr><th>Spelare</th><th>Röda</th><th>Gula</th><th>Gröna</th><th>Totalt</th></tr></thead><tbody>{cardStats.map((player) => <tr key={player.id}><td><b>{player.name}</b><small>{player.teamLabel}</small></td><td>{player.red}</td><td>{player.yellow}</td><td>{player.green}</td><td><strong>{player.totalCards}</strong></td></tr>)}</tbody></table></div> : <p className="chart-empty">Inga kort registrerade för den här sporten ännu. Under en match kan du trycka på kortsymbolen vid spelarens namn.</p>}</section>
             </div>
@@ -329,6 +370,6 @@ function PermissionMatrix({ value, disabled, onChange }: { value: Permissions; d
   return <div className="permission-matrix-wrap"><table className="permission-matrix"><thead><tr><th>Område</th>{actions.map((action) => <th key={action.key}>{action.label}</th>)}</tr></thead><tbody>{permissionLabels.map((area) => <tr key={area.key}><th scope="row">{area.label}</th>{actions.map((action) => <td key={action.key}><label><input type="checkbox" disabled={disabled} checked={value[area.key][action.key]} aria-label={`${area.label}: ${action.label}`} onChange={(event) => onChange(area.key, action.key, event.target.checked)}/></label></td>)}</tr>)}</tbody></table></div>;
 }
 
-async function togglePlayerFor(matchId: number, playerId: number, checked: boolean, run: (action: Record<string, unknown>) => Promise<void>) {
+async function togglePlayerFor(matchId: number, playerId: number, checked: boolean, run: (action: Record<string, unknown>) => Promise<unknown>) {
   await run({ action: checked ? "removeParticipant" : "addParticipant", matchId, playerId });
 }

@@ -29,6 +29,13 @@
       "when": 1791052223698,
       "tag": "0003_curvy_loa",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1791063502000,
+      "tag": "0004_cup_competitions",
+      "breakpoints": true
     }
   ]
 }
