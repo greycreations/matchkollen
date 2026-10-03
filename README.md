@@ -17,7 +17,7 @@ Kräver Docker Engine med Compose v2.
 4. Vid första starten visas konfigurationen där du skapar administratörskontot. Lösenordet ska ha minst 12 tecken.
 5. Logga in som admin och öppna **Användare** för att skapa konton och välja behörigheter för att lägga till, ändra eller ta bort uppgifter.
 
-Compose skapar den beständiga volymen `matchkollen_data`. Matchdata, konton och sessioner ligger i volymen och finns kvar när containern startas om eller byggs om. Migreringar tillämpas automatiskt vid containerstart. Appen nås på port 8060. Ändra värdet på vänster sida i `8060:8787` om du vill använda en annan port.
+Compose skapar den beständiga volymen `matchkollen_data`. Matchdata, konton och sessioner ligger i volymen och finns kvar när containern startas om eller byggs om. Migreringar tillämpas automatiskt vid containerstart. Appen nås på port 8060. Ändra värdet på vänster sida i `8060:8787` om du vill använda en annan port. Om du placerar en reverse proxy framför appen ska proxyn vidarebefordra `Host`, `X-Forwarded-Host` och `X-Forwarded-Proto`.
 
 Appen har inget öppet självregistreringsflöde. Admin skapar konton och kan stänga av dem. Behörigheter kontrolleras på servern. Administratören har alltid full åtkomst.
 

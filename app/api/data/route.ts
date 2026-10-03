@@ -40,7 +40,7 @@ export async function POST(request: Request) {
     const db = database();
     const actor = await getAuthUser(request);
     if (!actor) return Response.json({ error: "Logga in för att spara ändringar." }, { status: 401, headers: { "Cache-Control": "no-store" } });
-    if (!isSameOrigin(request)) return Response.json({ error: "Begäran avvisades." }, { status: 403 });
+    if (!isSameOrigin(request)) return Response.json({ error: "Säkerhetskontrollen stoppade begäran eftersom webbadressen inte matchar appens adress. Kontrollera att din proxy skickar vidare Host, X-Forwarded-Host och X-Forwarded-Proto." }, { status: 403 });
     const body = await request.json() as Record<string, unknown>;
     const action = String(body.action ?? "");
     const id = (key: string) => Number(body[key]);

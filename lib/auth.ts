@@ -80,13 +80,33 @@ export async function createSession(db: D1Database, userId: number) {
 }
 
 export function sessionCookie(token: string, request: Request, maxAge = 7 * 24 * 60 * 60) {
-  const secure = new URL(request.url).protocol === "https:" ? "; Secure" : "";
+  const externalProtocol = firstHeader(request.headers.get("x-forwarded-proto"));
+  const protocol = externalProtocol || new URL(request.url).protocol.slice(0, -1);
+  const secure = protocol === "https" ? "; Secure" : "";
   return `matchkollen_session=${token}; Path=/; Max-Age=${maxAge}; HttpOnly; SameSite=Strict${secure}`;
 }
 
 export function isSameOrigin(request: Request) {
-  const origin = request.headers.get("origin");
-  return (!origin || origin === new URL(request.url).origin) && request.headers.get("sec-fetch-site") !== "cross-site";
+  if (request.headers.get("sec-fetch-site") === "cross-site") return false;
+  const suppliedOrigin = request.headers.get("origin");
+  if (!suppliedOrigin) return true;
+
+  let origin: string;
+  try { origin = new URL(suppliedOrigin).origin; } catch { return false; }
+
+  const requestUrl = new URL(request.url);
+  const allowedOrigins = new Set([requestUrl.origin]);
+  const forwardedHost = firstHeader(request.headers.get("x-forwarded-host"));
+  const host = forwardedHost || firstHeader(request.headers.get("host"));
+  const protocol = firstHeader(request.headers.get("x-forwarded-proto")) || requestUrl.protocol.slice(0, -1);
+  if (host && ["http", "https"].includes(protocol)) {
+    try { allowedOrigins.add(new URL(`${protocol}://${host}`).origin); } catch { /* Ignore malformed proxy headers. */ }
+  }
+  return allowedOrigins.has(origin);
+}
+
+function firstHeader(value: string | null) {
+  return value?.split(",", 1)[0]?.trim() ?? "";
 }
 
 export function validEmail(value: string) {

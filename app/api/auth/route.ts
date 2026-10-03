@@ -35,7 +35,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  if (!isSameOrigin(request)) return json({ error: "Begäran avvisades." }, 403);
+  if (!isSameOrigin(request)) return json({ error: "Säkerhetskontrollen stoppade begäran eftersom webbadressen inte matchar appens adress. Kontrollera att din proxy skickar vidare Host, X-Forwarded-Host och X-Forwarded-Proto." }, 403);
   try {
     const db = database();
     const body = await request.json() as Record<string, unknown>;
