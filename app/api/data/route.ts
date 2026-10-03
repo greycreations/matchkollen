@@ -19,15 +19,16 @@ export async function GET(request: Request) {
     const user = await getAuthUser(request);
     if (!user) return Response.json({ error: "Logga in för att visa matchdata." }, { status: 401, headers: { "Cache-Control": "no-store" } });
     const db = database();
-    const [sports, teams, players, matches, participants, goals] = await Promise.all([
+    const [sports, teams, players, matches, participants, goals, cards] = await Promise.all([
       db.prepare("SELECT id, name FROM sports ORDER BY name").all(),
       db.prepare("SELECT teams.id, teams.sport_id AS sportId, teams.name, teams.group_name AS groupName, teams.active, sports.name AS sportName FROM teams JOIN sports ON sports.id = teams.sport_id ORDER BY sports.name, teams.group_name, teams.name").all(),
       db.prepare("SELECT id, team_id AS teamId, name, number, active FROM players ORDER BY name").all(),
       db.prepare("SELECT id, team_id AS teamId, home_name AS homeName, opponent, scheduled_at AS scheduledAt, venue, periods, status FROM matches ORDER BY scheduled_at DESC").all(),
       db.prepare("SELECT participants.id, participants.match_id AS matchId, participants.player_id AS playerId, players.name AS playerName, players.number, players.active FROM participants JOIN players ON players.id = participants.player_id ORDER BY players.number, players.name").all(),
       db.prepare("SELECT goals.id, goals.match_id AS matchId, goals.period, goals.side, goals.player_id AS playerId, goals.player_name AS playerName, goals.number, goals.created_at AS createdAt FROM goals ORDER BY goals.id").all(),
+      db.prepare("SELECT cards.id, cards.match_id AS matchId, cards.period, cards.player_id AS playerId, cards.card_type AS cardType, cards.created_at AS createdAt, players.name AS playerName, players.number FROM cards JOIN players ON players.id = cards.player_id ORDER BY cards.id").all(),
     ]);
-    return Response.json({ sports: sports.results, teams: teams.results, players: players.results, matches: matches.results, participants: participants.results, goals: goals.results });
+    return Response.json({ sports: sports.results, teams: teams.results, players: players.results, matches: matches.results, participants: participants.results, goals: goals.results, cards: cards.results });
   } catch (error) {
     console.error("Matchkollen load failed", error);
     return Response.json({ error: message(error) }, { status: 503 });
@@ -49,7 +50,7 @@ export async function POST(request: Request) {
       addPlayer: ["players", "create"], updatePlayer: ["players", "edit"], deletePlayer: ["players", "delete"],
       createMatch: ["matches", "create"], updateMatch: ["matches", "edit"], startMatch: ["matches", "edit"], finishMatch: ["matches", "edit"],
       addParticipant: ["matches", "edit"], removeParticipant: ["matches", "edit"], deleteMatch: ["matches", "delete"],
-      goal: ["scores", "create"], updateGoal: ["scores", "edit"], deleteGoal: ["scores", "delete"], resetMatch: ["scores", "delete"],
+      goal: ["scores", "create"], card: ["scores", "create"], updateGoal: ["scores", "edit"], deleteGoal: ["scores", "delete"], deleteCard: ["scores", "delete"], resetMatch: ["scores", "delete"],
     };
     const permission = permissionByAction[action];
     if (!permission) return Response.json({ error: "Okänd åtgärd." }, { status: 400 });
@@ -162,6 +163,22 @@ export async function POST(request: Request) {
       await db.prepare("UPDATE matches SET status = 'live' WHERE id = ?").bind(matchId).run();
       return Response.json({ success: true });
     }
+    if (action === "card") {
+      const matchId = id("matchId"), period = id("period"), playerId = id("playerId"), cardType = string("cardType");
+      if (!matchId || !period || !playerId || !["red", "yellow", "green"].includes(cardType)) return Response.json({ error: "Kontrollera spelare, period och korttyp." }, { status: 400 });
+      const match = await db.prepare("SELECT periods FROM matches WHERE id = ?").bind(matchId).first<{ periods: number }>();
+      if (!match) return Response.json({ error: "Matchen hittades inte." }, { status: 404 });
+      if (period > match.periods) return Response.json({ error: `Matchen har bara ${match.periods} perioder.` }, { status: 400 });
+      const eligible = await db.prepare("SELECT players.id FROM players JOIN participants ON participants.player_id = players.id WHERE players.id = ? AND participants.match_id = ? AND players.active = 1").bind(playerId, matchId).first<{ id: number }>();
+      if (!eligible) return Response.json({ error: "Spelaren måste vara aktiv och vald till matchtruppen." }, { status: 400 });
+      await db.prepare("INSERT INTO cards (match_id, period, player_id, card_type) VALUES (?, ?, ?, ?)").bind(matchId, period, playerId, cardType).run();
+      await db.prepare("UPDATE matches SET status = 'live' WHERE id = ?").bind(matchId).run();
+      return Response.json({ success: true });
+    }
+    if (action === "deleteCard") {
+      await db.prepare("DELETE FROM cards WHERE id = ?").bind(id("cardId")).run();
+      return Response.json({ success: true });
+    }
     if (action === "updateGoal") {
       const goalId = id("goalId"), period = id("period"), side = string("side");
       if (!goalId || !period || !["home", "away"].includes(side)) return Response.json({ error: "Kontrollera period och lag." }, { status: 400 });
@@ -176,13 +193,18 @@ export async function POST(request: Request) {
       return Response.json({ success: true });
     }
     if (action === "resetMatch") {
-      await db.prepare("DELETE FROM goals WHERE match_id = ?").bind(id("matchId")).run();
+      const matchId = id("matchId");
+      await db.batch([
+        db.prepare("DELETE FROM goals WHERE match_id = ?").bind(matchId),
+        db.prepare("DELETE FROM cards WHERE match_id = ?").bind(matchId),
+      ]);
       return Response.json({ success: true });
     }
     if (action === "deleteMatch") {
       const matchId = id("matchId");
       await db.batch([
         db.prepare("DELETE FROM goals WHERE match_id = ?").bind(matchId),
+        db.prepare("DELETE FROM cards WHERE match_id = ?").bind(matchId),
         db.prepare("DELETE FROM participants WHERE match_id = ?").bind(matchId),
         db.prepare("DELETE FROM matches WHERE id = ?").bind(matchId),
       ]);

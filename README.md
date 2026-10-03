@@ -28,6 +28,7 @@ Appen har inget öppet självregistreringsflöde. Admin skapar konton och kan st
 - Planera matcher med datum, tid, plats, motståndare och två eller tre perioder
 - Välja vilka spelare som deltar i varje match
 - Registrera och redigera mål med period, lag och målskytt
+- Registrera röda, gula och gröna kort per spelare och period, med kortstatistik per sport
 - Statistik per sport, med resultat, mål, skytteliga, närvaro och lagöversikt
 - Användarkonton med separata behörigheter för sporter/lag, spelare, matcher och matchhändelser
 
@@ -46,6 +47,7 @@ Initiera en helt ny lokal databas genom att tillämpa migreringarna i ordning:
 node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0000_blue_shadow_king.sql
 node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0001_wet_gambit.sql
 node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0002_wandering_patch.sql
+node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0003_curvy_loa.sql
 ```
 
 Starta sedan förhandsvisningen med `npm run dev`. Lokal databasdata sparas i `.wrangler/state`.

@@ -50,6 +50,15 @@ export const goals = sqliteTable("goals", {
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 
+export const cards = sqliteTable("cards", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  matchId: integer("match_id").notNull(),
+  period: integer("period").notNull(),
+  playerId: integer("player_id").notNull(),
+  cardType: text("card_type").notNull(),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
 export const users = sqliteTable("users", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   name: text("name").notNull(),
