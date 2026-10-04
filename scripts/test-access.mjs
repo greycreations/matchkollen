@@ -95,6 +95,16 @@ for (const [cookie, matchId, playerId] of [[coach, matchA, playerA], [admin, mat
   await mutate(cookie, { action: "card", matchId, period: 1, playerId, cardType: "yellow" });
 }
 await mutate(coach, { action: "card", matchId: matchA, period: 1, playerId: playerA, cardType: "red" }, 400);
+await mutate(parent, { action: "returnToScheduled", matchId: matchA }, 403);
+await mutate(coach, { action: "returnToScheduled", matchId: matchB }, 403);
+await mutate(coach, { action: "returnToScheduled", matchId: matchA });
+assert.equal(sqlite.prepare("SELECT status FROM matches WHERE id = ?").get(matchA).status, "scheduled");
+for (const table of ["goals", "cards", "participants"]) assert.equal(sqlite.prepare(`SELECT COUNT(*) AS total FROM ${table} WHERE match_id = ?`).get(matchA).total, 1);
+await mutate(coach, { action: "returnToScheduled", matchId: matchA }, 409);
+await mutate(coach, { action: "startMatch", matchId: matchA });
+assert.equal(sqlite.prepare("SELECT status FROM matches WHERE id = ?").get(matchA).status, "live");
+await mutate(admin, { action: "finishMatch", matchId: matchB });
+await mutate(admin, { action: "returnToScheduled", matchId: matchB }, 409);
 await mutate(coach, { action: "card", matchId: matchA, period: -1, playerId: playerA, cardType: "yellow" }, 400);
 await mutate(coach, { action: "goal", matchId: matchA, period: 1.5, side: "home" }, 400);
 await mutate(coach, { action: "addParticipant", matchId: matchA, playerId: playerB }, 400);

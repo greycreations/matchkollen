@@ -60,7 +60,7 @@ export async function POST(request: Request) {
     const permissionByAction: Record<string, [PermissionArea, PermissionAction]> = {
       addSport: ["teams", "create"], updateSport: ["teams", "edit"], deleteSport: ["teams", "delete"], addTeam: ["teams", "create"], updateTeam: ["teams", "edit"], deleteTeam: ["teams", "delete"],
       addPlayer: ["players", "create"], updatePlayer: ["players", "edit"], deletePlayer: ["players", "delete"],
-      createMatch: ["matches", "create"], createCompetition: ["matches", "create"], updateCardSettings: ["matches", "edit"], updateMatch: ["matches", "edit"], startMatch: ["matches", "edit"], finishMatch: ["matches", "edit"],
+      createMatch: ["matches", "create"], createCompetition: ["matches", "create"], updateCardSettings: ["matches", "edit"], updateMatch: ["matches", "edit"], startMatch: ["matches", "edit"], returnToScheduled: ["matches", "edit"], finishMatch: ["matches", "edit"],
       addParticipant: ["matches", "edit"], removeParticipant: ["matches", "edit"], deleteMatch: ["matches", "delete"],
       goal: ["scores", "create"], card: ["scores", "create"], updateGoal: ["scores", "edit"], deleteGoal: ["scores", "delete"], deleteCard: ["scores", "delete"], resetMatch: ["scores", "delete"],
     };
@@ -193,6 +193,11 @@ export async function POST(request: Request) {
     }
     if (action === "startMatch") {
       await db.prepare("UPDATE matches SET status = 'live' WHERE id = ?").bind(id("matchId")).run();
+      return Response.json({ success: true });
+    }
+    if (action === "returnToScheduled") {
+      const result = await db.prepare("UPDATE matches SET status = 'scheduled' WHERE id = ? AND status = 'live'").bind(id("matchId")).run();
+      if (result.meta.changes !== 1) return Response.json({ error: "Endast en pågående match kan återställas till planerad." }, { status: 409 });
       return Response.json({ success: true });
     }
     if (action === "finishMatch") {

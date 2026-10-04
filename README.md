@@ -43,6 +43,8 @@ Efter uppdateringen till roller och lagtillgång behöver admin öppna **Använd
 
 Startsidan visar planerade matcher i datumordning med tydlig sportmärkning. Sportväljaren filtrerar lag, spelare, matcher, cuper och statistik i hela appen. Admins kontohantering visar alltid alla lag, grupperade efter sport.
 
+Om en match startats av misstag kan admin eller en tränare för laget välja **Tillbaka till planerad** under **Pågående matcher** på fliken **Matcher**. Mål, kort och matchtrupp behålls, och matchen kan startas igen senare.
+
 ## Kortval
 
 Vid skapande väljer du gula, röda och gröna kort var för sig. Fristående matcher har egna inställningar. För en cup eller ett sammandrag gäller ett gemensamt val, även för matcher som läggs till senare. Endast aktiverade korttyper visas som registreringsknappar i matchvyn och tillåts av servern.
