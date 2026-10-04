@@ -68,6 +68,22 @@ button,input,select{font:inherit}button{cursor:pointer}button:disabled{opacity:.
 .access-sport strong { color:#367b70; }
 .account-access select { min-height:40px; width:100%; padding:8px 12px; background:white; border:1px solid #dbe6e7; border-radius:8px; }
 .account-access input[type="checkbox"] { width:16px; min-height:16px; height:16px; padding:0; flex:0 0 16px; }
+.form-stack .account-access .access-sport label, .account-edit-form .account-access .access-sport label { flex-direction:row; align-items:center; justify-content:flex-start; }
+.user-admin-grid { grid-template-columns:minmax(260px,.75fr) minmax(0,1.65fr); }
+.user-list-panel { min-width:0; }
+.account-role-section + .account-role-section { border-top:1px solid var(--line); margin-top:22px; padding-top:20px; }
+.account-role-heading { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:8px; margin-bottom:12px; }
+.account-role-heading h3 { margin:0; font-size:14px; color:var(--navy); }
+.account-role-heading span { font-size:10px; color:var(--muted); }
+.account-table { min-width:500px; }
+.account-table th, .account-table td { vertical-align:top; }
+.account-table-actions { display:flex; flex-wrap:wrap; gap:7px; }
+.account-table-actions .button { min-height:34px; padding:7px 9px; font-size:10px; }
+.account-delete-button { background:#fff3f0; border-color:#edc9be; color:#a3452b; }
+.account-delete-button:hover { background:#fbe4dd; }
+.account-team-labels { display:flex; flex-direction:column; gap:5px; font-size:10px; }
+.account-editor-row td { background:#f7fafb; padding:18px; }
+@media (max-width:900px) { .user-admin-grid { grid-template-columns:1fr; } .user-list-panel { order:-1; } }
 .player-card-actions { display:flex; }
 .player-card-actions .card-action { flex:1; }
 .read-only-grid { grid-template-columns:1fr; }

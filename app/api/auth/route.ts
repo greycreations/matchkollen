@@ -145,6 +145,20 @@ export async function POST(request: Request) {
       return json({ success: true });
     }
 
+    if (action === "deleteUser") {
+      const userId = Number(body.userId);
+      if (!Number.isInteger(userId) || userId < 1) return json({ error: "Ogiltigt användarkonto." }, 400);
+      const target = await db.prepare("SELECT role FROM users WHERE id = ?").bind(userId).first<{ role: string }>();
+      if (!target) return json({ error: "Användaren hittades inte." }, 404);
+      if (target.role === "admin") return json({ error: "Administratörskonton kan inte tas bort." }, 403);
+      await db.batch([
+        db.prepare("DELETE FROM sessions WHERE user_id IN (SELECT id FROM users WHERE id = ? AND role <> 'admin')").bind(userId),
+        db.prepare("DELETE FROM user_teams WHERE user_id IN (SELECT id FROM users WHERE id = ? AND role <> 'admin')").bind(userId),
+        db.prepare("DELETE FROM users WHERE id = ? AND role <> 'admin'").bind(userId),
+      ]);
+      return json({ success: true });
+    }
+
     if (action === "setUserActive") {
       const userId = Number(body.userId), active = body.active === true ? 1 : 0;
       if (!Number.isInteger(userId) || userId < 1) return json({ error: "Ogiltigt användarkonto." }, 400);

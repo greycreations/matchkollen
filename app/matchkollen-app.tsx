@@ -74,6 +74,7 @@ export default function MatchkollenApp({ user, onLogout }: { user: AuthUser; onL
   const [statisticsTeamId, setStatisticsTeamId] = useState("all");
   const [statisticsCompetitionId, setStatisticsCompetitionId] = useState("all");
   const [statisticsMatchId, setStatisticsMatchId] = useState("all");
+  const [editingAccountId, setEditingAccountId] = useState<number | null>(null);
   const [accountUsers, setAccountUsers] = useState<ManagedUser[]>([]);
   const [newUser, setNewUser] = useState({ name: "", email: "", password: "", role: "parent" as "coach" | "parent", teamIds: [] as number[] });
 
@@ -242,6 +243,20 @@ export default function MatchkollenApp({ user, onLogout }: { user: AuthUser; onL
     </article>;
   })}</div>;
 
+  function renderAccountTable(role: AuthUser["role"], title: string) {
+    const accounts = accountUsers.filter((account) => account.role === role).sort((a, b) => a.name.localeCompare(b.name, "sv-SE") || a.email.localeCompare(b.email, "sv-SE") || a.id - b.id);
+    return <section className="account-role-section"><div className="account-role-heading"><h3>{title}</h3><span>{accounts.length} konton · namn A–Ö</span></div>{accounts.length ? <div className="table-scroll"><table className="data-table account-table"><caption className="sr-only">{title}, sorterade efter namn</caption><thead><tr><th scope="col">Namn / e-post</th><th scope="col">Lag</th><th scope="col">Status</th><th scope="col">Åtgärder</th></tr></thead><tbody>{accounts.map((account) => <AccountRows key={account.id} account={account} teams={allData.teams} editing={editingAccountId === account.id} disabled={saving} onEdit={() => setEditingAccountId((old) => old === account.id ? null : account.id)} onToggle={() => { if (!account.active || window.confirm(`Stänga av ${account.name}? Inloggningen avslutas direkt. Kontot kan aktiveras igen senare.`)) void saveAccount("setUserActive", { userId: account.id, active: !account.active }, account.active ? "Kontot är avstängt." : "Kontot är aktiverat igen."); }} onDelete={() => { if (window.confirm(`Ta bort kontot för ${account.name} (${account.email}) permanent? Kontot, lagtillgången och alla inloggningar raderas. Detta kan inte ångras. Lag, spelare och matchhistorik behålls.`)) void saveAccount("deleteUser", { userId: account.id }, "Användarkontot är permanent borttaget.").then((ok) => { if (ok) setEditingAccountId(null); }); }}>
+      {editingAccountId === account.id && (<form className="account-edit-form" onSubmit={(event) => { event.preventDefault(); void saveAccount("updateUser", { userId: account.id, name: account.name, email: account.email, password: account.password ?? "", role: account.role, teamIds: account.teamIds }, "Användarkontot är uppdaterat.").then((ok) => { if (ok) setEditingAccountId(null); }); }}>
+                    <label>Namn<input value={account.name} onChange={(e) => setAccountUsers((all) => all.map((a) => a.id === account.id ? { ...a, name: e.target.value } : a))}/></label>
+                    <label>E-post<input type="email" value={account.email} onChange={(e) => setAccountUsers((all) => all.map((a) => a.id === account.id ? { ...a, email: e.target.value } : a))}/></label>
+                    <label>Nytt lösenord <small>(lämna tomt för att behålla nuvarande)</small><input type="password" minLength={12} value={account.password ?? ""} onChange={(e) => setAccountUsers((all) => all.map((a) => a.id === account.id ? { ...a, password: e.target.value } : a))} placeholder="Minst 12 tecken"/></label>
+                    <AccountAccess role={account.role === "coach" ? "coach" : "parent"} teamIds={account.teamIds} teams={allData.teams} disabled={saving} onChange={(values) => setAccountUsers((all) => all.map((item) => item.id === account.id ? { ...item, ...values } : item))}/>
+
+                    <div className="account-table-actions"><button className="button button-primary" disabled={saving}>Spara ändringar</button><button type="button" className="button button-outline" disabled={saving} onClick={() => { setEditingAccountId(null); void loadUsers(); }}>Avbryt</button></div>
+                  </form>)}
+    </AccountRows>)}</tbody></table></div> : <div className="simple-empty">Inga {role === "coach" ? "tränarkonton" : role === "parent" ? "föräldrakonton" : "administratörskonton"} ännu.</div>}</section>;
+  }
+
   return (
     <main className="app-shell">
       <header className="topbar">
@@ -373,20 +388,10 @@ export default function MatchkollenApp({ user, onLogout }: { user: AuthUser; onL
               </form>
             </section>
             <section className="panel user-list-panel"><div className="panel-heading"><span className="panel-icon soft"><Shield size={17}/></span><div><h2>Registrerade konton</h2><p>{accountUsers.length} konton</p></div></div>
-              {accountUsers.length ? <div className="account-list">{accountUsers.map((account) => <article className={account.active ? "account-card" : "account-card account-disabled"} key={account.id}>
-                <div className="account-summary"><span className="account-avatar">{account.name.slice(0,1).toUpperCase()}</span><span className="account-identity"><b>{account.name}</b><small>{account.email}</small></span><span className={account.active ? "account-state active-state" : "account-state inactive-state"}>{account.active ? "Aktiv" : "Avstängd"}</span><span className="account-role">{roleLabel(account.role)}</span></div>
-                {account.role !== "admin" && <>
-                  <details className="account-details"><summary><Pencil size={13}/> Redigera konto & behörighet</summary><form className="account-edit-form" onSubmit={(event) => { event.preventDefault(); void saveAccount("updateUser", { userId: account.id, name: account.name, email: account.email, password: account.password ?? "", role: account.role, teamIds: account.teamIds }, "Användarkontot är uppdaterat."); }}>
-                    <label>Namn<input value={account.name} onChange={(e) => setAccountUsers((all) => all.map((a) => a.id === account.id ? { ...a, name: e.target.value } : a))}/></label>
-                    <label>E-post<input type="email" value={account.email} onChange={(e) => setAccountUsers((all) => all.map((a) => a.id === account.id ? { ...a, email: e.target.value } : a))}/></label>
-                    <label>Nytt lösenord <small>(lämna tomt för att behålla nuvarande)</small><input type="password" minLength={12} value={account.password ?? ""} onChange={(e) => setAccountUsers((all) => all.map((a) => a.id === account.id ? { ...a, password: e.target.value } : a))} placeholder="Minst 12 tecken"/></label>
-                    <AccountAccess role={account.role === "coach" ? "coach" : "parent"} teamIds={account.teamIds} teams={allData.teams} disabled={saving} onChange={(values) => setAccountUsers((all) => all.map((item) => item.id === account.id ? { ...item, ...values } : item))}/>
+              {renderAccountTable("coach", "Tränare")}
+              {renderAccountTable("parent", "Föräldrar")}
+              {renderAccountTable("admin", "Administratörer")}
 
-                    <button className="button button-outline" disabled={saving}>Spara ändringar</button>
-                  </form></details>
-                  <button className={account.active ? "account-toggle" : "account-toggle reactivate"} disabled={saving} onClick={() => { if (!account.active || window.confirm(`Stänga av ${account.name}? Inloggningen avslutas direkt.`)) void saveAccount("setUserActive", { userId: account.id, active: !account.active }, account.active ? "Kontot är avstängt." : "Kontot är aktiverat igen."); }}>{account.active ? "Stäng av konto" : "Aktivera konto"}</button>
-                </>}
-              </article>)}</div> : <div className="simple-empty">Inga konton ännu. Skapa det första med formuläret.</div>}
             </section>
           </div>
         </>}
@@ -412,6 +417,10 @@ export default function MatchkollenApp({ user, onLogout }: { user: AuthUser; onL
       <footer className="footer"><span>Matchkollen</span><span>Enkel koll på varje match</span></footer>
     </main>
   );
+}
+
+function AccountRows({ account, teams, editing, disabled, onEdit, onToggle, onDelete, children }: { account: ManagedUser; teams: Team[]; editing: boolean; disabled: boolean; onEdit: () => void; onToggle: () => void; onDelete: () => void; children: React.ReactNode }) {
+  return <><tr className={account.active ? "" : "account-disabled"}><td><b>{account.name}</b><small>{account.email}</small></td><td>{account.role === "admin" ? "Alla lag" : account.teamIds.length ? <div className="account-team-labels">{account.teamIds.map((id) => { const team = teams.find((team) => team.id === id); return <span key={id}>{team ? `${team.sportName} · ${team.name}${team.groupName ? ` · ${team.groupName}` : ""}` : "Borttaget lag"}</span>; })}</div> : "Inga lag"}</td><td><span className={account.active ? "account-state active-state" : "account-state inactive-state"}>{account.active ? "Aktiv" : "Avstängd"}</span></td><td>{account.role === "admin" ? <small>Full åtkomst · skyddat konto</small> : <div className="account-table-actions"><button className="button button-outline" disabled={disabled} aria-expanded={editing} aria-label={`Redigera konto för ${account.name}`} onClick={onEdit}><Pencil size={13}/>Redigera</button><button className="button button-outline" disabled={disabled} onClick={onToggle}>{account.active ? "Stäng av konto" : "Aktivera konto"}</button><button className="button account-delete-button" disabled={disabled} aria-label={`Ta bort konto för ${account.name}`} onClick={onDelete}><Trash2 size={13}/>Ta bort konto</button></div>}</td></tr>{editing && account.role !== "admin" && <tr className="account-editor-row"><td colSpan={4}>{children}</td></tr>}</>;
 }
 
 type CardSelection = { yellowEnabled: boolean; redEnabled: boolean; greenEnabled: boolean };

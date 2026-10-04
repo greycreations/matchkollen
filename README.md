@@ -41,6 +41,8 @@ Efter uppdateringen till roller och lagtillgång behöver admin öppna **Använd
 - **Förälder** kan endast visa tilldelade lags trupper, matcher, resultat och statistik.
 - Ett konto utan tilldelade lag ser ingen lagdata. Tilldelning kan även omfatta arkiverade lag för åtkomst till historik.
 
+Under **Användare** visas separata tabeller för tränare, föräldrar och administratörer, sorterade efter namn A–Ö. **Stäng av konto** avslutar inloggningar tillfälligt och kontot kan aktiveras igen. **Ta bort konto** raderar kontot, dess lagtillgång och sessioner permanent efter bekräftelse. Lag, spelare och matchhistorik påverkas inte. Bara admin får ta bort konton, och administratörskonton skyddas från borttagning.
+
 Startsidan visar planerade matcher i datumordning med tydlig sportmärkning. Sportväljaren filtrerar lag, spelare, matcher, cuper och statistik i hela appen. Admins kontohantering visar alltid alla lag, grupperade efter sport.
 
 Om en match startats av misstag kan admin eller en tränare för laget välja **Tillbaka till planerad** under **Pågående matcher** på fliken **Matcher**. Mål, kort och matchtrupp behålls, och matchen kan startas igen senare.
