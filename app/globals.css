@@ -71,6 +71,10 @@ button,input,select{font:inherit}button{cursor:pointer}button:disabled{opacity:.
 .player-card-actions { display:flex; }
 .player-card-actions .card-action { flex:1; }
 .read-only-grid { grid-template-columns:1fr; }
+.match-editor-panel { margin:16px 0; }
+.match-editor-fields { display:flex; flex-direction:column; gap:14px; margin:0; padding:0; border:0; min-width:0; }
+.match-editor-actions { display:flex; flex-wrap:wrap; gap:10px; }
+.match-row-actions { flex-wrap:wrap; justify-content:flex-end; }
 @media (max-width:1100px) {
   .topbar { height:auto; min-height:70px; flex-wrap:wrap; padding:14px 22px 0; gap:12px; }
   .nav-tabs { order:3; width:100%; height:42px; overflow-x:auto; justify-content:flex-start; }

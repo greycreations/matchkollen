@@ -187,8 +187,28 @@ export async function POST(request: Request) {
       return Response.json({ success: true, competitionId, matchCount: preparedMatches.length });
     }
     if (action === "updateMatch") {
-      const matchId = id("matchId"), homeName = string("homeName"), opponent = string("opponent");
-      await db.prepare("UPDATE matches SET home_name = ?, opponent = ? WHERE id = ?").bind(homeName, opponent, matchId).run();
+      const matchId = id("matchId"), teamId = id("teamId"), homeName = string("homeName"), opponent = string("opponent"), venue = string("venue"), scheduledAt = string("scheduledAt"), periods = id("periods"), status = string("status");
+      const competitionId = body.competitionId === null || body.competitionId === "" ? null : id("competitionId");
+      if (!Number.isInteger(teamId) || teamId < 1 || !homeName || !opponent || !Number.isFinite(new Date(scheduledAt).getTime()) || ![2, 3].includes(periods) || !["scheduled", "live", "completed"].includes(status) || (competitionId !== null && (!Number.isInteger(competitionId) || competitionId < 1)) || ["yellowEnabled", "redEnabled", "greenEnabled"].some((key) => typeof body[key] !== "boolean")) return Response.json({ error: "Kontrollera lag, lagnamn, motståndare, datum, perioder, status och kortval." }, { status: 400 });
+      const existing = await db.prepare("SELECT team_id AS teamId FROM matches WHERE id = ?").bind(matchId).first<{ teamId: number }>();
+      if (!existing) return Response.json({ error: "Matchen hittades inte." }, { status: 404 });
+      if (!canAccessTeam(actor, teamId)) return Response.json({ error: "Du har inte tillgång till det valda laget." }, { status: 403 });
+      const targetTeam = await db.prepare("SELECT id, active FROM teams WHERE id = ?").bind(teamId).first<{ id: number; active: number }>();
+      if (!targetTeam || (targetTeam.active !== 1 && teamId !== existing.teamId)) return Response.json({ error: "Det valda laget är inte aktivt." }, { status: 400 });
+      if (teamId !== existing.teamId) {
+        const related = await db.prepare("SELECT (SELECT COUNT(*) FROM participants WHERE match_id = ?) + (SELECT COUNT(*) FROM goals WHERE match_id = ?) + (SELECT COUNT(*) FROM cards WHERE match_id = ?) AS total").bind(matchId, matchId, matchId).first<{ total: number }>();
+        if (related?.total) return Response.json({ error: "Laget kan inte bytas när matchen har matchtrupp, mål eller kort. Ta bort dessa uppgifter först om du vill byta lag." }, { status: 409 });
+      }
+      const lastPeriod = await db.prepare("SELECT MAX(period) AS period FROM (SELECT period FROM goals WHERE match_id = ? UNION ALL SELECT period FROM cards WHERE match_id = ?)").bind(matchId, matchId).first<{ period: number | null }>();
+      if ((lastPeriod?.period ?? 0) > periods) return Response.json({ error: "Periodantalet kan inte minskas eftersom det finns mål eller kort i en senare period." }, { status: 409 });
+      if (competitionId !== null) {
+        const competition = await db.prepare("SELECT team_id AS teamId, yellow_enabled AS yellowEnabled, red_enabled AS redEnabled, green_enabled AS greenEnabled FROM competitions WHERE id = ?").bind(competitionId).first<{ teamId: number; yellowEnabled: number; redEnabled: number; greenEnabled: number }>();
+        if (!competition || competition.teamId !== teamId) return Response.json({ error: "Cupen eller sammandraget tillhör inte det valda laget." }, { status: 400 });
+        if (actor.role !== "admin" && cardSettings.some((value, index) => value !== [competition.yellowEnabled, competition.redEnabled, competition.greenEnabled][index])) return Response.json({ error: "Endast admin kan ändra cupens gemensamma kortval." }, { status: 403 });
+      }
+      const statements = [db.prepare("UPDATE matches SET team_id = ?, competition_id = ?, home_name = ?, opponent = ?, scheduled_at = ?, venue = ?, periods = ?, status = ?, yellow_enabled = ?, red_enabled = ?, green_enabled = ? WHERE id = ?").bind(teamId, competitionId, homeName, opponent, new Date(scheduledAt).toISOString(), venue, periods, status, ...cardSettings, matchId)];
+      if (competitionId !== null && actor.role === "admin") statements.push(db.prepare("UPDATE competitions SET yellow_enabled = ?, red_enabled = ?, green_enabled = ? WHERE id = ?").bind(...cardSettings, competitionId));
+      await db.batch(statements);
       return Response.json({ success: true });
     }
     if (action === "startMatch") {

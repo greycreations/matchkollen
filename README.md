@@ -49,7 +49,9 @@ Om en match startats av misstag kan admin eller en tränare för laget välja **
 
 Vid skapande väljer du gula, röda och gröna kort var för sig. Fristående matcher har egna inställningar. För en cup eller ett sammandrag gäller ett gemensamt val, även för matcher som läggs till senare. Endast aktiverade korttyper visas som registreringsknappar i matchvyn och tillåts av servern.
 
-Kortvalet kan ändras i matchvyn under **Kortinställningar**. Tränare kan ändra fristående matcher inom sina lag; bara admin kan ändra cupens gemensamma kortval. Redan registrerade kort finns kvar i historik och statistik. Befintliga matcher och cuper har alla tre korttyper aktiverade efter uppdateringen.
+Välj **Redigera match** på fliken **Matcher** (även under **Historik**) eller inställningsknappen i matchvyn för att ändra lag, lagnamn, motståndare, datum och tid, plats, periodantal, cup/sammandrag, status och kortval. Tränare kan redigera sina tilldelade lag; bara admin kan ändra cupens gemensamma kortval. Redan registrerade kort finns kvar i historik och statistik. Befintliga matcher och cuper har alla tre korttyper aktiverade efter uppdateringen.
+
+Lagbyte tillåts bara när matchen saknar matchtrupp, mål och kort. Antalet perioder kan inte minskas om det finns händelser i en senare period. Dessa kontroller skyddar matchhistoriken vid redigering.
 
 ## Funktioner
 
