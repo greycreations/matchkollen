@@ -29,7 +29,7 @@ export default function Home() {
     }
   }, []);
 
-  useEffect(() => { void loadSession(); }, [loadSession]);
+  useEffect(() => { const timer = setTimeout(() => void loadSession(), 0); return () => clearTimeout(timer); }, [loadSession]);
 
   async function submit(action: AuthAction, values: Record<string, string>) {
     setBusy(true);

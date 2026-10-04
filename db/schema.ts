@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { index, integer, primaryKey, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
 export const sports = sqliteTable("sports", {
   id: integer("id").primaryKey({ autoIncrement: true }),
@@ -27,19 +27,25 @@ export const competitions = sqliteTable("competitions", {
   teamId: integer("team_id").notNull(),
   name: text("name").notNull(),
   kind: text("kind").notNull().default("cup"),
+  yellowEnabled: integer("yellow_enabled").notNull().default(1),
+  redEnabled: integer("red_enabled").notNull().default(1),
+  greenEnabled: integer("green_enabled").notNull().default(1),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 
 export const matches = sqliteTable("matches", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   teamId: integer("team_id").notNull(),
-  competitionId: integer("competition_id"),
+  competitionId: integer("competition_id").references(() => competitions.id),
   homeName: text("home_name").notNull(),
   opponent: text("opponent").notNull(),
   scheduledAt: text("scheduled_at").notNull(),
   venue: text("venue").notNull().default(""),
   periods: integer("periods").notNull().default(3),
   status: text("status").notNull().default("scheduled"),
+  yellowEnabled: integer("yellow_enabled").notNull().default(1),
+  redEnabled: integer("red_enabled").notNull().default(1),
+  greenEnabled: integer("green_enabled").notNull().default(1),
 });
 
 export const participants = sqliteTable("participants", {
@@ -87,3 +93,8 @@ export const sessions = sqliteTable("sessions", {
   expiresAt: text("expires_at").notNull(),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
+
+export const userTeams = sqliteTable("user_teams", {
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  teamId: integer("team_id").notNull().references(() => teams.id, { onDelete: "cascade" }),
+}, (table) => [primaryKey({ columns: [table.userId, table.teamId] }), index("user_teams_team_idx").on(table.teamId)]);

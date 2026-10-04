@@ -1,5 +1,5 @@
 import { env } from "cloudflare:workers";
-import { getAuthUser, hasPermission, isSameOrigin, type PermissionAction, type PermissionArea } from "@/lib/auth";
+import { canAccessTeam, getAuthUser, hasPermission, isSameOrigin, type PermissionAction, type PermissionArea } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -23,13 +23,24 @@ export async function GET(request: Request) {
       db.prepare("SELECT id, name FROM sports ORDER BY name").all(),
       db.prepare("SELECT teams.id, teams.sport_id AS sportId, teams.name, teams.group_name AS groupName, teams.active, sports.name AS sportName FROM teams JOIN sports ON sports.id = teams.sport_id ORDER BY sports.name, teams.group_name, teams.name").all(),
       db.prepare("SELECT id, team_id AS teamId, name, number, active FROM players ORDER BY name").all(),
-      db.prepare("SELECT id, team_id AS teamId, name, kind, created_at AS createdAt FROM competitions ORDER BY created_at DESC, name").all(),
-      db.prepare("SELECT matches.id, matches.team_id AS teamId, matches.competition_id AS competitionId, competitions.name AS competitionName, competitions.kind AS competitionKind, matches.home_name AS homeName, matches.opponent, matches.scheduled_at AS scheduledAt, matches.venue, matches.periods, matches.status FROM matches LEFT JOIN competitions ON competitions.id = matches.competition_id ORDER BY matches.scheduled_at DESC").all(),
+      db.prepare("SELECT id, team_id AS teamId, name, kind, yellow_enabled AS yellowEnabled, red_enabled AS redEnabled, green_enabled AS greenEnabled, created_at AS createdAt FROM competitions ORDER BY created_at DESC, name").all(),
+      db.prepare("SELECT matches.id, matches.team_id AS teamId, matches.competition_id AS competitionId, competitions.name AS competitionName, competitions.kind AS competitionKind, matches.home_name AS homeName, matches.opponent, matches.scheduled_at AS scheduledAt, matches.venue, matches.periods, matches.status, COALESCE(competitions.yellow_enabled, matches.yellow_enabled) AS yellowEnabled, COALESCE(competitions.red_enabled, matches.red_enabled) AS redEnabled, COALESCE(competitions.green_enabled, matches.green_enabled) AS greenEnabled FROM matches LEFT JOIN competitions ON competitions.id = matches.competition_id ORDER BY matches.scheduled_at DESC").all(),
       db.prepare("SELECT participants.id, participants.match_id AS matchId, participants.player_id AS playerId, players.name AS playerName, players.number, players.active FROM participants JOIN players ON players.id = participants.player_id ORDER BY players.number, players.name").all(),
       db.prepare("SELECT goals.id, goals.match_id AS matchId, goals.period, goals.side, goals.player_id AS playerId, goals.player_name AS playerName, goals.number, goals.created_at AS createdAt FROM goals ORDER BY goals.id").all(),
       db.prepare("SELECT cards.id, cards.match_id AS matchId, cards.period, cards.player_id AS playerId, cards.card_type AS cardType, cards.created_at AS createdAt, players.name AS playerName, players.number FROM cards JOIN players ON players.id = cards.player_id ORDER BY cards.id").all(),
     ]);
-    return Response.json({ sports: sports.results, teams: teams.results, players: players.results, competitions: competitions.results, matches: matches.results, participants: participants.results, goals: goals.results, cards: cards.results });
+    const visibleTeams = teams.results.filter((team) => canAccessTeam(user, Number(team.id)));
+    const teamIds = new Set(visibleTeams.map((team) => team.id));
+    const sportIds = new Set(visibleTeams.map((team) => team.sportId));
+    const visibleMatches = matches.results.filter((match) => teamIds.has(match.teamId));
+    const matchIds = new Set(visibleMatches.map((match) => match.id));
+    return Response.json({
+      sports: sports.results.filter((sport) => user.role === "admin" || sportIds.has(sport.id)),
+      teams: visibleTeams, players: players.results.filter((player) => teamIds.has(player.teamId)),
+      competitions: competitions.results.filter((competition) => teamIds.has(competition.teamId)), matches: visibleMatches,
+      participants: participants.results.filter((item) => matchIds.has(item.matchId)),
+      goals: goals.results.filter((item) => matchIds.has(item.matchId)), cards: cards.results.filter((item) => matchIds.has(item.matchId)),
+    }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     console.error("Matchkollen load failed", error);
     return Response.json({ error: message(error) }, { status: 503 });
@@ -49,13 +60,40 @@ export async function POST(request: Request) {
     const permissionByAction: Record<string, [PermissionArea, PermissionAction]> = {
       addSport: ["teams", "create"], updateSport: ["teams", "edit"], deleteSport: ["teams", "delete"], addTeam: ["teams", "create"], updateTeam: ["teams", "edit"], deleteTeam: ["teams", "delete"],
       addPlayer: ["players", "create"], updatePlayer: ["players", "edit"], deletePlayer: ["players", "delete"],
-      createMatch: ["matches", "create"], createCompetition: ["matches", "create"], updateMatch: ["matches", "edit"], startMatch: ["matches", "edit"], finishMatch: ["matches", "edit"],
+      createMatch: ["matches", "create"], createCompetition: ["matches", "create"], updateCardSettings: ["matches", "edit"], updateMatch: ["matches", "edit"], startMatch: ["matches", "edit"], finishMatch: ["matches", "edit"],
       addParticipant: ["matches", "edit"], removeParticipant: ["matches", "edit"], deleteMatch: ["matches", "delete"],
       goal: ["scores", "create"], card: ["scores", "create"], updateGoal: ["scores", "edit"], deleteGoal: ["scores", "delete"], deleteCard: ["scores", "delete"], resetMatch: ["scores", "delete"],
     };
     const permission = permissionByAction[action];
     if (!permission) return Response.json({ error: "Okänd åtgärd." }, { status: 400 });
     if (!hasPermission(actor, permission[0], permission[1])) return Response.json({ error: "Ditt konto saknar behörighet för den här åtgärden." }, { status: 403 });
+
+    // Resolve ownership from stored records, never from a supplied teamId for existing data.
+    if (actor.role !== "admin") {
+      let teamId: number | undefined;
+      if (["addPlayer", "createMatch", "createCompetition"].includes(action)) teamId = id("teamId");
+      else if (["updatePlayer", "deletePlayer"].includes(action)) {
+        teamId = (await db.prepare("SELECT team_id AS teamId FROM players WHERE id = ?").bind(id("playerId")).first<{ teamId: number }>())?.teamId;
+      } else if (["updateGoal", "deleteGoal"].includes(action)) {
+        teamId = (await db.prepare("SELECT matches.team_id AS teamId FROM goals JOIN matches ON matches.id = goals.match_id WHERE goals.id = ?").bind(id("goalId")).first<{ teamId: number }>())?.teamId;
+      } else if (action === "deleteCard") {
+        teamId = (await db.prepare("SELECT matches.team_id AS teamId FROM cards JOIN matches ON matches.id = cards.match_id WHERE cards.id = ?").bind(id("cardId")).first<{ teamId: number }>())?.teamId;
+      } else {
+        const match = await db.prepare("SELECT team_id AS teamId, competition_id AS competitionId FROM matches WHERE id = ?").bind(id("matchId")).first<{ teamId: number; competitionId: number | null }>();
+        if (action === "updateCardSettings" && match?.competitionId) return Response.json({ error: "Endast admin kan ändra cupens gemensamma kortval." }, { status: 403 });
+        teamId = match?.teamId;
+      }
+      if (teamId === undefined || !canAccessTeam(actor, teamId)) return Response.json({ error: "Du har inte tillgång till det här laget." }, { status: 403 });
+    }
+    const cardSettings = [body.yellowEnabled === false ? 0 : 1, body.redEnabled === false ? 0 : 1, body.greenEnabled === false ? 0 : 1];
+    if (action === "updateCardSettings") {
+      if (["yellowEnabled", "redEnabled", "greenEnabled"].some((key) => typeof body[key] !== "boolean")) return Response.json({ error: "Välj vilka kort som ska användas." }, { status: 400 });
+      const match = await db.prepare("SELECT competition_id AS competitionId FROM matches WHERE id = ?").bind(id("matchId")).first<{ competitionId: number | null }>();
+      if (!match) return Response.json({ error: "Matchen hittades inte." }, { status: 404 });
+      if (match.competitionId) await db.prepare("UPDATE competitions SET yellow_enabled = ?, red_enabled = ?, green_enabled = ? WHERE id = ?").bind(...cardSettings, match.competitionId).run();
+      else await db.prepare("UPDATE matches SET yellow_enabled = ?, red_enabled = ?, green_enabled = ? WHERE id = ?").bind(...cardSettings, id("matchId")).run();
+      return Response.json({ success: true });
+    }
 
     if (action === "addSport") {
       const name = string("name");
@@ -118,14 +156,14 @@ export async function POST(request: Request) {
     if (action === "createMatch") {
       const teamId = id("teamId"), opponent = string("opponent"), homeName = string("homeName"), venue = string("venue"), competitionId = body.competitionId ? Number(body.competitionId) : null;
       const scheduledAt = string("scheduledAt"), periods = Math.min(3, Math.max(2, Number(body.periods)));
-      if (!teamId || !opponent || !scheduledAt) return Response.json({ error: "Lag, motståndare samt datum och tid behövs." }, { status: 400 });
+      if (!teamId || !opponent || !Number.isFinite(new Date(scheduledAt).getTime()) || ![2, 3].includes(periods)) return Response.json({ error: "Lag, motståndare samt datum och tid behövs." }, { status: 400 });
       const team = await db.prepare("SELECT name FROM teams WHERE id = ? AND active = 1").bind(teamId).first<{ name: string }>();
       if (!team) return Response.json({ error: "Det valda laget hittades inte." }, { status: 404 });
       if (competitionId) {
         const competition = await db.prepare("SELECT id FROM competitions WHERE id = ? AND team_id = ?").bind(competitionId, teamId).first<{ id: number }>();
         if (!competition) return Response.json({ error: "Cupen eller sammandraget tillhör inte det valda laget." }, { status: 400 });
       }
-      const result = await db.prepare("INSERT INTO matches (team_id, competition_id, home_name, opponent, scheduled_at, venue, periods, status) VALUES (?, ?, ?, ?, ?, ?, ?, 'scheduled')").bind(teamId, competitionId, homeName || team.name, opponent, new Date(scheduledAt).toISOString(), venue, periods).run();
+      const result = await db.prepare("INSERT INTO matches (team_id, competition_id, home_name, opponent, scheduled_at, venue, periods, yellow_enabled, red_enabled, green_enabled, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'scheduled')").bind(teamId, competitionId, homeName || team.name, opponent, new Date(scheduledAt).toISOString(), venue, periods, ...cardSettings).run();
       return Response.json({ success: true, matchId: result.meta.last_row_id });
     }
     if (action === "createCompetition") {
@@ -143,7 +181,7 @@ export async function POST(request: Request) {
         return { opponent, scheduledAt: new Date(scheduledAt).toISOString(), venue, periods };
       });
       if (preparedMatches.some((match) => match === null)) return Response.json({ error: "Varje match behöver motståndare, giltigt datum och tid samt två eller tre perioder." }, { status: 400 });
-      const created = await db.prepare("INSERT INTO competitions (team_id, name, kind) VALUES (?, ?, ?)").bind(teamId, name, kind).run();
+      const created = await db.prepare("INSERT INTO competitions (team_id, name, kind, yellow_enabled, red_enabled, green_enabled) VALUES (?, ?, ?, ?, ?, ?)").bind(teamId, name, kind, ...cardSettings).run();
       const competitionId = Number(created.meta.last_row_id);
       await db.batch(preparedMatches.map((match) => db.prepare("INSERT INTO matches (team_id, competition_id, home_name, opponent, scheduled_at, venue, periods, status) VALUES (?, ?, ?, ?, ?, ?, ?, 'scheduled')").bind(teamId, competitionId, team.name, match!.opponent, match!.scheduledAt, match!.venue, match!.periods)));
       return Response.json({ success: true, competitionId, matchCount: preparedMatches.length });
@@ -173,7 +211,7 @@ export async function POST(request: Request) {
     }
     if (action === "goal") {
       const matchId = id("matchId"), period = id("period"), side = string("side");
-      if (!matchId || !period || !["home", "away"].includes(side)) return Response.json({ error: "Ogiltig målregistrering." }, { status: 400 });
+      if (!matchId || !Number.isInteger(period) || period < 1 || !["home", "away"].includes(side)) return Response.json({ error: "Ogiltig målregistrering." }, { status: 400 });
       const match = await db.prepare("SELECT periods FROM matches WHERE id = ?").bind(matchId).first<{ periods: number }>();
       if (!match) return Response.json({ error: "Matchen hittades inte." }, { status: 404 });
       if (period > match.periods) return Response.json({ error: `Matchen har bara ${match.periods} perioder.` }, { status: 400 });
@@ -190,9 +228,11 @@ export async function POST(request: Request) {
     }
     if (action === "card") {
       const matchId = id("matchId"), period = id("period"), playerId = id("playerId"), cardType = string("cardType");
-      if (!matchId || !period || !playerId || !["red", "yellow", "green"].includes(cardType)) return Response.json({ error: "Kontrollera spelare, period och korttyp." }, { status: 400 });
-      const match = await db.prepare("SELECT periods FROM matches WHERE id = ?").bind(matchId).first<{ periods: number }>();
+      if (!matchId || !Number.isInteger(period) || period < 1 || !playerId || !["red", "yellow", "green"].includes(cardType)) return Response.json({ error: "Kontrollera spelare, period och korttyp." }, { status: 400 });
+      const match = await db.prepare("SELECT matches.periods, COALESCE(competitions.yellow_enabled, matches.yellow_enabled) AS yellowEnabled, COALESCE(competitions.red_enabled, matches.red_enabled) AS redEnabled, COALESCE(competitions.green_enabled, matches.green_enabled) AS greenEnabled FROM matches LEFT JOIN competitions ON competitions.id = matches.competition_id WHERE matches.id = ?").bind(matchId).first<{ periods: number; yellowEnabled: number; redEnabled: number; greenEnabled: number }>();
       if (!match) return Response.json({ error: "Matchen hittades inte." }, { status: 404 });
+      const enabled = cardType === "yellow" ? match.yellowEnabled : cardType === "red" ? match.redEnabled : match.greenEnabled;
+      if (!enabled) return Response.json({ error: "Den korttypen är avstängd för matchen." }, { status: 400 });
       if (period > match.periods) return Response.json({ error: `Matchen har bara ${match.periods} perioder.` }, { status: 400 });
       const eligible = await db.prepare("SELECT players.id FROM players JOIN participants ON participants.player_id = players.id WHERE players.id = ? AND participants.match_id = ? AND players.active = 1").bind(playerId, matchId).first<{ id: number }>();
       if (!eligible) return Response.json({ error: "Spelaren måste vara aktiv och vald till matchtruppen." }, { status: 400 });
@@ -206,7 +246,7 @@ export async function POST(request: Request) {
     }
     if (action === "updateGoal") {
       const goalId = id("goalId"), period = id("period"), side = string("side");
-      if (!goalId || !period || !["home", "away"].includes(side)) return Response.json({ error: "Kontrollera period och lag." }, { status: 400 });
+      if (!goalId || !Number.isInteger(period) || period < 1 || !["home", "away"].includes(side)) return Response.json({ error: "Kontrollera period och lag." }, { status: 400 });
       const goal = await db.prepare("SELECT goals.match_id AS matchId, matches.periods FROM goals JOIN matches ON matches.id = goals.match_id WHERE goals.id = ?").bind(goalId).first<{ matchId: number; periods: number }>();
       if (!goal) return Response.json({ error: "Matchhändelsen hittades inte." }, { status: 404 });
       if (period > goal.periods) return Response.json({ error: `Matchen har bara ${goal.periods} perioder.` }, { status: 400 });

@@ -10,8 +10,9 @@ export type AuthUser = {
   id: number;
   name: string;
   email: string;
-  role: "admin" | "user";
+  role: "admin" | "coach" | "parent";
   permissions: Permissions;
+  teamIds: number[];
 };
 
 export const emptyPermissions: Permissions = {
@@ -21,18 +22,8 @@ export const emptyPermissions: Permissions = {
   scores: { create: false, edit: false, delete: false },
 };
 
-export function normalizePermissions(value: unknown): Permissions {
-  const input = value && typeof value === "object" ? value as Record<string, unknown> : {};
-  const result = structuredClone(emptyPermissions);
-  for (const area of permissionAreas) {
-    const row = input[area] && typeof input[area] === "object" ? input[area] as Record<string, unknown> : {};
-    for (const action of permissionActions) result[area][action] = row[action] === true;
-  }
-  return result;
-}
-
 export function hasPermission(user: AuthUser, area: PermissionArea, action: PermissionAction) {
-  return user.role === "admin" || user.permissions[area]?.[action] === true;
+  return user.role === "admin" || user.role === "coach" && area !== "teams" && user.permissions[area]?.[action] === true;
 }
 
 export async function getAuthUser(request: Request): Promise<AuthUser | null> {
@@ -44,11 +35,10 @@ export async function getAuthUser(request: Request): Promise<AuthUser | null> {
   const now = new Date().toISOString();
   const row = await db.prepare(
     "SELECT users.id, users.name, users.email, users.role, users.permissions FROM sessions JOIN users ON users.id = sessions.user_id WHERE sessions.token_hash = ? AND sessions.expires_at > ? AND users.active = 1 LIMIT 1",
-  ).bind(tokenHash, now).first<{ id: number; name: string; email: string; role: "admin" | "user"; permissions: string }>();
+  ).bind(tokenHash, now).first<{ id: number; name: string; email: string; role: "admin" | "coach" | "parent"; permissions: string }>();
   if (!row) return null;
-  let permissions: unknown;
-  try { permissions = JSON.parse(row.permissions); } catch { permissions = {}; }
-  return { id: row.id, name: row.name, email: row.email, role: row.role, permissions: normalizePermissions(permissions) };
+  const assigned = await db.prepare("SELECT team_id AS teamId FROM user_teams WHERE user_id = ?").bind(row.id).all<{ teamId: number }>();
+  return { id: row.id, name: row.name, email: row.email, role: row.role, permissions: rolePermissions(row.role), teamIds: assigned.results.map((item) => item.teamId) };
 }
 
 export async function passwordRecord(password: string) {
@@ -149,4 +139,16 @@ function fromBase64(value: string) {
   const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
   const binary = atob(normalized + "=".repeat((4 - normalized.length % 4) % 4));
   return Uint8Array.from(binary, (character) => character.charCodeAt(0));
+}
+
+export function rolePermissions(role: AuthUser["role"]): Permissions {
+  const result = structuredClone(emptyPermissions);
+  if (role === "admin" || role === "coach") {
+    for (const area of permissionAreas) for (const action of permissionActions) result[area][action] = role === "admin" || area !== "teams";
+  }
+  return result;
+}
+
+export function canAccessTeam(user: AuthUser, teamId: number) {
+  return user.role === "admin" || user.teamIds.includes(teamId);
 }

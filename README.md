@@ -15,11 +15,39 @@ Kräver Docker Engine med Compose v2.
 
 3. Öppna `http://localhost:8060`.
 4. Vid första starten visas konfigurationen där du skapar administratörskontot. Lösenordet ska ha minst 12 tecken.
-5. Logga in som admin och öppna **Användare** för att skapa konton och välja behörigheter för att lägga till, ändra eller ta bort uppgifter.
+5. Logga in som admin och öppna **Användare** för att skapa konton, välja rollen **Tränare** eller **Förälder** och markera vilka lag kontot får tillgång till.
 
 Compose skapar den beständiga volymen `matchkollen_data`. Matchdata, konton och sessioner ligger i volymen och finns kvar när containern startas om eller byggs om. Migreringar tillämpas automatiskt vid containerstart. Appen nås på port 8060. Ändra värdet på vänster sida i `8060:8787` om du vill använda en annan port. Om du placerar en reverse proxy framför appen ska proxyn vidarebefordra `Host`, `X-Forwarded-Host` och `X-Forwarded-Proto`.
 
 Appen har inget öppet självregistreringsflöde. Admin skapar konton och kan stänga av dem. Behörigheter kontrolleras på servern. Administratören har alltid full åtkomst.
+
+## Uppdatera en befintlig Docker-installation
+
+Kör från mappen med din `docker-compose.yml`:
+
+```sh
+docker compose build --no-cache matchkollen
+docker compose up -d matchkollen
+```
+
+Bygget hämtar senaste koden från `main`. Databasmigreringarna körs automatiskt vid start och volymen `matchkollen_data` behålls.
+
+Efter uppdateringen till roller och lagtillgång behöver admin öppna **Användare** och tilldela befintliga användarkonton roll och lag. Tidigare konton med rollen `user` blir **Förälder** utan tilldelade lag. Konton, lösenord och matchhistorik behålls; admin påverkas inte. Ändring av ett kontos roll eller lag avslutar dess befintliga sessioner så att personen får logga in igen.
+
+## Roller, lag och sporter
+
+- **Admin** ser och hanterar alla sporter, lag och konton.
+- **Tränare** kan registrera och hantera spelare, matcher, cuper, mål och kort för sina tilldelade lag. Sporter och själva lagregistret hanteras av admin.
+- **Förälder** kan endast visa tilldelade lags trupper, matcher, resultat och statistik.
+- Ett konto utan tilldelade lag ser ingen lagdata. Tilldelning kan även omfatta arkiverade lag för åtkomst till historik.
+
+Startsidan visar planerade matcher i datumordning med tydlig sportmärkning. Sportväljaren filtrerar lag, spelare, matcher, cuper och statistik i hela appen. Admins kontohantering visar alltid alla lag, grupperade efter sport.
+
+## Kortval
+
+Vid skapande väljer du gula, röda och gröna kort var för sig. Fristående matcher har egna inställningar. För en cup eller ett sammandrag gäller ett gemensamt val, även för matcher som läggs till senare. Endast aktiverade korttyper visas som registreringsknappar i matchvyn och tillåts av servern.
+
+Kortvalet kan ändras i matchvyn under **Kortinställningar**. Tränare kan ändra fristående matcher inom sina lag; bara admin kan ändra cupens gemensamma kortval. Redan registrerade kort finns kvar i historik och statistik. Befintliga matcher och cuper har alla tre korttyper aktiverade efter uppdateringen.
 
 ## Funktioner
 
@@ -32,7 +60,9 @@ Appen har inget öppet självregistreringsflöde. Admin skapar konton och kan st
 - Registrera röda, gula och gröna kort per spelare och period, med kortstatistik per sport
 - Filtrera statistik per sport, lag, cup/sammandrag och match
 - Statistik med resultat, mål, skytteliga, närvaro och lagöversikt
-- Användarkonton med separata behörigheter för sporter/lag, spelare, matcher och matchhändelser
+- Gemensam startsida med sportväljare och planerade matcher
+- Tränar- och föräldrakonton med tillgång till valda lag och serverkontrollerade behörigheter
+- Individuellt kortval per match eller gemensamt för cup/sammandrag
 
 ## Lokal utveckling
 
@@ -51,6 +81,9 @@ node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1
 node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0002_wandering_patch.sql
 node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0003_curvy_loa.sql
 node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0004_cup_competitions.sql
+node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0005_roles_teams_cards.sql
 ```
 
 Starta sedan förhandsvisningen med `npm run dev`. Lokal databasdata sparas i `.wrangler/state`.
+
+Verifiera med `npm run lint`, `npx tsc --noEmit`, `npm run build` och `npm run test:access`. Behörighetstesterna kör de riktiga API-funktionerna och samtliga SQL-migreringar mot en isolerad SQLite-databas och kräver Node.js 22.13 eller senare.
