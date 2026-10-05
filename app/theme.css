@@ -1,4 +1,19 @@
 :root { color-scheme:light; }
+.app-help { margin-top:18px; margin-bottom:18px; padding:0; }
+.app-help>summary { display:flex; align-items:center; gap:12px; padding:18px; cursor:pointer; list-style:none; }
+.app-help>summary::-webkit-details-marker { display:none; }
+.app-help>summary>span:nth-child(2) { display:flex; flex-direction:column; gap:5px; }
+.app-help summary strong { font-size:14px; color:var(--navy); }
+.app-help summary small,.coach-teams p { color:var(--muted); font-size:12px; }
+.help-chevron { margin-left:auto; flex-shrink:0; color:var(--muted); }
+.app-help[open] .help-chevron { transform:rotate(180deg); }
+.help-content { padding:0 22px 20px; max-width:850px; font-size:14px; line-height:1.7; }
+.help-content section { border-top:1px solid var(--line); margin-top:18px; padding-top:16px; }
+.help-content h3 { font-size:15px; margin:0 0 8px; }
+.help-content p { margin:8px 0; }
+.app-help summary:focus-visible { outline:2px solid var(--blue); outline-offset:3px; border-radius:10px; }
+.coach-teams { margin-bottom:18px; padding:18px; }
+.coach-team-list { display:flex; flex-wrap:wrap; gap:8px; }
 .theme-picker { display:inline-flex; align-items:center; gap:5px; flex-shrink:0; color:#526d79; }
 .theme-picker select { border:1px solid var(--line); border-radius:7px; padding:6px 7px; background:#fff; color:#365461; font-size:11px; min-height:32px; }
 .auth-brand .auth-brand-name { display:flex; flex-direction:column; gap:3px; }

@@ -95,3 +95,6 @@ node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1
 Starta sedan förhandsvisningen med `npm run dev`. Lokal databasdata sparas i `.wrangler/state`.
 
 Verifiera med `npm run lint`, `npx tsc --noEmit`, `npm run build` och `npm run test:access`. Behörighetstesterna kör de riktiga API-funktionerna och samtliga SQL-migreringar mot en isolerad SQLite-databas och kräver Node.js 22.13 eller senare.
+## Användarhjälp
+
+Start-fliken har ett öppningsbart hjälpavsnitt som beskriver konton, lagtillhörighet, spelare, matchplanering, perioder, avslut, historik, statistik och temaval. Tränare kan kopplas till flera lag i flera sporter under Användare och ser sina tränarlag på startsidan. Vid periodpaus gör man uppehåll i registreringen; appen har ingen separat pausstatus eller matchklocka.
