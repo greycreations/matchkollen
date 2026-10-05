@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { sportAvatars } from "@/lib/sport-avatars";
 
 // These authenticated, already resized JPEGs must bypass public image optimization caches.
 /* eslint-disable @next/next/no-img-element */
@@ -43,6 +44,13 @@ export function PhotoEditor({ kind, id, name, revision = 0, onSaved }: { kind: "
     next.onerror = () => { URL.revokeObjectURL(url); setError("Bilden kunde inte öppnas."); };
     next.src = url;
   }
+  function selectAvatar(src: string) {
+    setError(""); setMessage(""); setImage(null);
+    const next = new Image();
+    next.onload = () => { setZoom(1); setX(0); setY(0); setImage(next); };
+    next.onerror = () => setError("Sportavataren kunde inte öppnas.");
+    next.src = src;
+  }
   async function save(remove = false) {
     if (!remove && !canvas.current) return;
     setSaving(true); setError(""); setMessage("");
@@ -57,6 +65,7 @@ export function PhotoEditor({ kind, id, name, revision = 0, onSaved }: { kind: "
     finally { setSaving(false); }
   }
   return <details className="photo-editor"><summary><Avatar kind={kind} id={id} name={name} revision={currentRevision}/><span>Profilbild · {name}</span></summary><div className="photo-controls">
+    <details className="sport-avatar-picker"><summary>Välj en rolig sportavatar · 20 bilder</summary><p>Välj en maskot, kontrollera förhandsvisningen och klicka på Spara bild.</p>{["Fotboll", "Innebandy"].map((sport) => <section key={sport}><h3>{sport}</h3><div className="sport-avatar-grid">{sportAvatars.filter((avatar) => avatar.sport === sport).map((avatar) => <button type="button" key={avatar.id} title={avatar.name} aria-label={`Välj ${avatar.name}`} disabled={saving} onClick={() => selectAvatar(avatar.src)}><img src={avatar.src} alt=""/><span>{avatar.name.split(" · ")[0]}</span></button>)}</div></section>)}</details>
     <label>Välj bild<input type="file" accept="image/jpeg,image/png,image/webp" disabled={saving} onChange={(event) => { void select(event.target.files?.[0]); event.target.value = ""; }}/></label>
     {image && <><p>Dra bilden eller använd reglagen för att centrera ansiktet. Den runda förhandsvisningen visar hur bilden blir.</p><canvas ref={canvas} width={256} height={256} aria-label={`Förhandsvisning av profilbild för ${name}`} onPointerDown={(event) => { event.currentTarget.setPointerCapture(event.pointerId); drag.current = { x: event.clientX, y: event.clientY, initialX: x, initialY: y }; }} onPointerUp={() => { drag.current = null; }} onPointerCancel={() => { drag.current = null; }} onPointerMove={(event) => {
       if (!drag.current || saving) return;

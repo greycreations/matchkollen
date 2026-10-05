@@ -140,9 +140,15 @@ export async function POST(request: Request) {
       const team = await db.prepare("SELECT id FROM teams WHERE id = ? AND active = 1").bind(teamId).first<{ id: number }>();
       if (!team) return Response.json({ error: "Det valda laget hittades inte." }, { status: 404 });
       if (name.length > 100 || (number !== null && (!Number.isInteger(number) || number < 0 || number > 999))) return Response.json({ error: "Kontrollera namn och tröjnummer." }, { status: 400 });
+      if (body.parentIds !== undefined && (!Array.isArray(body.parentIds) || body.parentIds.some((id) => !Number.isInteger(id) || Number(id) < 1))) return Response.json({ error: "Välj giltiga föräldrar." }, { status: 400 });
+      const parentIds = [...new Set((body.parentIds ?? []) as number[])];
+      if (parentIds.length && actor.role !== "admin") return Response.json({ error: "Endast admin kan koppla föräldrakonton." }, { status: 403 });
+      const parents = await db.prepare("SELECT id FROM users WHERE role = 'parent'").all<{ id: number }>();
+      if (parentIds.some((id) => !parents.results.some((parent) => parent.id === id))) return Response.json({ error: "Ett föräldrakonto saknas." }, { status: 400 });
       await db.batch([
         db.prepare("INSERT INTO player_profiles (name) VALUES (?)").bind(name),
         db.prepare("INSERT INTO players (team_id, profile_id, name, number, active) VALUES (?, last_insert_rowid(), ?, ?, 1)").bind(teamId, name, number),
+        ...parentIds.map((userId) => db.prepare("INSERT INTO parent_children (user_id, profile_id) SELECT ?, MAX(id) FROM player_profiles").bind(userId)),
       ]);
       return Response.json({ success: true });
     }

@@ -108,3 +108,8 @@ export const userTeams = sqliteTable("user_teams", {
   userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   teamId: integer("team_id").notNull().references(() => teams.id, { onDelete: "cascade" }),
 }, (table) => [primaryKey({ columns: [table.userId, table.teamId] }), index("user_teams_team_idx").on(table.teamId)]);
+
+export const parentChildren = sqliteTable("parent_children", {
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  profileId: integer("profile_id").notNull().references(() => playerProfiles.id, { onDelete: "cascade" }),
+}, (table) => [primaryKey({ columns: [table.userId, table.profileId] }), index("parent_children_profile_idx").on(table.profileId)]);

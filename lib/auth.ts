@@ -14,6 +14,7 @@ export type AuthUser = {
   role: "admin" | "coach" | "parent";
   permissions: Permissions;
   teamIds: number[];
+  childProfileIds?: number[];
 };
 
 export const emptyPermissions: Permissions = {
@@ -39,7 +40,8 @@ export async function getAuthUser(request: Request): Promise<AuthUser | null> {
   ).bind(tokenHash, now).first<{ id: number; name: string; email: string; role: "admin" | "coach" | "parent"; permissions: string; photoRevision: number }>();
   if (!row) return null;
   const assigned = await db.prepare("SELECT team_id AS teamId FROM user_teams WHERE user_id = ?").bind(row.id).all<{ teamId: number }>();
-  return { id: row.id, name: row.name, email: row.email, photoRevision: row.photoRevision, role: row.role, permissions: rolePermissions(row.role), teamIds: assigned.results.map((item) => item.teamId) };
+  const children = await db.prepare("SELECT profile_id AS id FROM parent_children WHERE user_id = ?").bind(row.id).all<{ id: number }>();
+  return { childProfileIds: children.results.map((child) => child.id), id: row.id, name: row.name, email: row.email, photoRevision: row.photoRevision, role: row.role, permissions: rolePermissions(row.role), teamIds: assigned.results.map((item) => item.teamId) };
 }
 
 export async function passwordRecord(password: string) {

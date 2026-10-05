@@ -218,6 +218,31 @@ assert.deepEqual(sqlite.prepare("SELECT * FROM goals ORDER BY id").all(), histor
 assert.equal((await call("profiles", coach, { action: "rename", profileId: profileB, name: "No" })).status, 403);
 assert.equal((await call("profiles", admin, { action: "membership", profileId: profileA, teamId: teamA, number: -1, active: true })).status, 400);
 const parentUser = (await call("auth", parent)).body.user;
+// Family identity is separate from team authorization and supports many-to-many links.
+const secondParentId = (await call("auth", noTeams)).body.user.id;
+assert.equal((await call("profiles", admin, { action: "family", profileId: profileA, parentIds: [parentUser.id, secondParentId] })).status, 200);
+assert.equal((await call("profiles", coach, { action: "family", profileId: profileA, parentIds: [] })).status, 403);
+assert.equal((await call("profiles", parent, { action: "family", profileId: profileA, parentIds: [] })).status, 403);
+assert.equal((await call("profiles", admin, { action: "family", profileId: profileA, parentIds: [authState.body.user.id] })).status, 400);
+assert.deepEqual((await call("auth", parent)).body.user.childProfileIds, [profileA]);
+assert.deepEqual((await call("data", noTeams)).body.teams, []);
+assert.equal((await call("profiles", parent)).body.family.length, 1);
+assert.equal((await call("profiles", parent)).body.family[0].userId, parentUser.id);
+assert.equal((await call("profiles", parent)).body.parents.length, 0);
+assert.equal((await call("auth", admin, { action: "createUser", name: "Family parent", email: "family@example.com", password, role: "parent", teamIds: [teamA], childProfileIds: [profileA, profileB, profileA] })).status, 201);
+const familyCookie = await login("family@example.com");
+const familyUser = (await call("auth", familyCookie)).body.user;
+assert.deepEqual(familyUser.childProfileIds.sort(), [profileA, profileB].sort());
+assert.equal((await call("auth", admin, { action: "updateUser", userId: familyUser.id, name: "Family parent", email: "family@example.com", role: "parent", teamIds: [teamA] })).status, 200);
+assert.equal(sqlite.prepare("SELECT COUNT(*) AS total FROM parent_children WHERE user_id = ?").get(familyUser.id).total, 2);
+assert.equal((await call("auth", admin, { action: "createUser", name: "Bad family", email: "badfamily@example.com", password, role: "parent", teamIds: [], childProfileIds: [99999] })).status, 400);
+await mutate(admin, { action: "addPlayer", teamId: teamA, name: "New child", number: 22, parentIds: [parentUser.id, secondParentId] });
+const newChildId = sqlite.prepare("SELECT id FROM player_profiles WHERE name = 'New child'").get().id;
+assert.equal(sqlite.prepare("SELECT COUNT(*) AS total FROM parent_children WHERE profile_id = ?").get(newChildId).total, 2);
+await mutate(coach, { action: "addPlayer", teamId: teamA, name: "Not allowed", number: 23, parentIds: [parentUser.id] }, 403);
+assert.equal((await call("auth", admin, { action: "deleteUser", userId: familyUser.id })).status, 200);
+assert.equal(sqlite.prepare("SELECT COUNT(*) AS total FROM parent_children WHERE user_id = ?").get(familyUser.id).total, 0);
+
 const coachId = authState.body.user.id;
 // A minimal JPEG frame tests validation and authorization; browser QA uses a real crop.
 const photo = Buffer.from([255,216,255,192,0,17,8,0,32,0,32,3,1,17,0,2,17,0,3,17,0,255,217]).toString("base64");
@@ -265,5 +290,9 @@ assert.equal((await call("auth", admin, { action: "setUserActive", userId: activ
 const activeCoach = await login("coach-2@example.com");
 assert.equal((await call("auth", admin, { action: "deleteUser", userId: activeCoachId })).status, 200);
 assert.equal((await call("data", activeCoach)).status, 401);
-console.log("Passed: SQL migrations, account roles, team isolation, all mutation ownership checks, read-only parents, card choices, cup inheritance, retained history, session revocation.");
 sqlite.close();
+
+const avatarFiles = (await readdir("public/avatars")).filter((file) => file.endsWith(".svg"));
+assert.equal(avatarFiles.length, 20);
+for (const file of avatarFiles) { const svg = await readFile(`public/avatars/${file}`, "utf8"); assert.ok(svg.startsWith('<svg ')); assert.equal(svg.includes('<script'), false); }
+console.log("Passed: family relationships and authorization, sports avatars, SQL migrations, account roles, team isolation, all mutation ownership checks, read-only parents, card choices, cup inheritance, retained history, session revocation.");

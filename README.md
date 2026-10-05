@@ -91,6 +91,7 @@ node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1
 node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0004_cup_competitions.sql
 node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0005_roles_teams_cards.sql
 node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0006_bright_loki.sql
+node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0007_gifted_cerebro.sql
 ```
 
 Starta sedan förhandsvisningen med `npm run dev`. Lokal databasdata sparas i `.wrangler/state`.
@@ -106,3 +107,9 @@ Start-fliken har ett öppningsbart hjälpavsnitt som beskriver konton, lagtillh�
 Spelare har en gemensam profil och separata lagkopplingar med tröjnummer och aktiv status. Befintliga spelare migreras en och en utan automatisk sammanslagning av lika namn. Matchtruppens ID:n och matchhistoriken behålls. Under Lag & spelare kan admin koppla profiler till alla lag; tränare kan använda profiler som är tillgängliga via deras egna lag och koppla dem till fler tilldelade lag.
 
 Alla användare kan ändra sin egen profilbild på Start. Admin kan ändra tränarnas och föräldrarnas bilder under Användare, och tränare kan ändra sina spelares bilder. Bildverktyget zoomar och centrerar lokalt innan en beskuren 256 × 256 JPEG sparas. Originalbilden laddas inte upp. Bilderna lagras i SQL-databasen och säkerhetskopieras tillsammans med den befintliga Docker-volymen `matchkollen_data`. Bildhämtning kräver inloggning och kontrollerar lagbehörigheten.
+
+## Familjekopplingar och sportavatarer
+
+Admin kopplar föräldrakonton till barnens spelarprofiler vid kontoregistrering eller senare i konto-/spelarprofilen. När admin registrerar en ny spelare kan befintliga föräldrakonton också väljas. Flera barn per förälder och flera föräldrar per barn stöds. Barn har spelarprofiler, inte en separat inloggningsroll. Kopplingarna ändrar inte lagbehörigheten. Föräldrar ser endast sina egna familjekopplingar i tillgängliga spelarprofiler; tränare ser föräldranamn för sina lag och admin hanterar alla kopplingar. Borttagning av ett konto raderar dess familjekopplingar utan att spelarprofil eller historik påverkas.
+
+Bildverktyget erbjuder 20 egna SVG-maskotar, tio för fotboll och tio för innebandy, som kan väljas och sparas som profilbild. Avatarerna laddas från appens egna filer och kräver ingen extern bildtjänst.

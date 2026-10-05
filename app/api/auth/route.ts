@@ -25,7 +25,8 @@ export async function GET(request: Request) {
     const user = await getAuthUser(request);
     const usersResult = user?.role === "admin" ? await db.prepare("SELECT id, name, email, role, permissions, active, CASE WHEN photo IS NULL THEN 0 ELSE photo_revision END AS photoRevision, created_at AS createdAt FROM users ORDER BY role, name").all<{ id: number; name: string; email: string; role: "admin" | "coach" | "parent"; permissions: string; active: number; photoRevision: number; createdAt: string }>() : null;
     const assignments = user?.role === "admin" ? await db.prepare("SELECT user_id AS userId, team_id AS teamId FROM user_teams").all<{ userId: number; teamId: number }>() : null;
-    const users = usersResult?.results.map((row) => ({ ...row, permissions: rolePermissions(row.role), teamIds: assignments?.results.filter((item) => item.userId === row.id).map((item) => item.teamId) ?? [] })) ?? undefined;
+    const family = user?.role === "admin" ? await db.prepare("SELECT user_id AS userId, profile_id AS profileId FROM parent_children").all<{ userId: number; profileId: number }>() : null;
+    const users = usersResult?.results.map((row) => ({ ...row, childProfileIds: family?.results.filter((item) => item.userId === row.id).map((item) => item.profileId) ?? [], permissions: rolePermissions(row.role), teamIds: assignments?.results.filter((item) => item.userId === row.id).map((item) => item.teamId) ?? [] })) ?? undefined;
     return json({ setupRequired: (count?.total ?? 0) === 0, user, ...(users ? { users } : {}) });
   } catch (error) {
     console.error("Matchkollen auth status failed", error);
@@ -80,16 +81,29 @@ export async function POST(request: Request) {
     if (actor.role !== "admin") return json({ error: "Endast administratörer kan hantera användarkonton." }, 403);
 
     let assignedTeamIds: number[] = [];
+    let childProfileIds: number[] = [];
     const role = body.role === "coach" ? "coach" : "parent";
     if (action === "createUser" || action === "updateUser") {
       if (!["coach", "parent"].includes(String(body.role)) || !Array.isArray(body.teamIds) || body.teamIds.some((value) => !Number.isInteger(value) || Number(value) < 1)) return json({ error: "Välj tränare eller förälder och giltiga lag." }, 400);
       assignedTeamIds = [...new Set(body.teamIds as number[])];
+      if (body.childProfileIds !== undefined && (!Array.isArray(body.childProfileIds) || body.childProfileIds.some((id) => !Number.isInteger(id) || Number(id) < 1))) return json({ error: "Välj giltiga spelarprofiler." }, 400);
+      if (role === "parent") {
+        // Older clients may omit this field; editing unrelated fields must retain the links.
+        if (body.childProfileIds === undefined && action === "updateUser") {
+          const old = await db.prepare("SELECT profile_id AS id FROM parent_children WHERE user_id = ?").bind(Number(body.userId)).all<{ id: number }>();
+          childProfileIds = old.results.map((row) => row.id);
+        } else childProfileIds = [...new Set((body.childProfileIds ?? []) as number[])];
+        const profiles = await db.prepare("SELECT id FROM player_profiles").all<{ id: number }>();
+        if (childProfileIds.some((id) => !profiles.results.some((profile) => profile.id === id))) return json({ error: "En vald spelarprofil saknas." }, 400);
+      } else if (Array.isArray(body.childProfileIds) && body.childProfileIds.length) return json({ error: "Barnkopplingar kräver rollen Förälder." }, 400);
       const available = await db.prepare("SELECT id FROM teams").all<{ id: number }>();
       if (assignedTeamIds.some((id) => !available.results.some((team) => team.id === id))) return json({ error: "Ett valt lag finns inte längre." }, 400);
     }
     const teamStatements = (userId: number) => [
       db.prepare("DELETE FROM user_teams WHERE user_id = ?").bind(userId),
       ...assignedTeamIds.map((teamId) => db.prepare("INSERT INTO user_teams (user_id, team_id) VALUES (?, ?)").bind(userId, teamId)),
+      db.prepare("DELETE FROM parent_children WHERE user_id = ?").bind(userId),
+      ...childProfileIds.map((profileId) => db.prepare("INSERT INTO parent_children (user_id, profile_id) VALUES (?, ?)").bind(userId, profileId)),
     ];
 
     if (action === "createUser") {
@@ -104,6 +118,7 @@ export async function POST(request: Request) {
         await db.batch([
           db.prepare("INSERT INTO users (name, email, password_salt, password_hash, role, permissions, active) VALUES (?, ?, ?, ?, ?, '{}', 1)").bind(name, email, passwordData.salt, passwordData.hash, role),
           ...assignedTeamIds.map((teamId) => db.prepare("INSERT INTO user_teams (user_id, team_id) SELECT id, ? FROM users WHERE email = ?").bind(teamId, email)),
+          ...childProfileIds.map((profileId) => db.prepare("INSERT INTO parent_children (user_id, profile_id) SELECT id, ? FROM users WHERE email = ?").bind(profileId, email)),
         ]);
       } catch (error) {
         if (error instanceof Error && error.message.toLowerCase().includes("unique")) return json({ error: "Det finns redan ett konto med den e-postadressen." }, 409);
@@ -154,6 +169,7 @@ export async function POST(request: Request) {
       await db.batch([
         db.prepare("DELETE FROM sessions WHERE user_id IN (SELECT id FROM users WHERE id = ? AND role <> 'admin')").bind(userId),
         db.prepare("DELETE FROM user_teams WHERE user_id IN (SELECT id FROM users WHERE id = ? AND role <> 'admin')").bind(userId),
+        db.prepare("DELETE FROM parent_children WHERE user_id = ?").bind(userId),
         db.prepare("DELETE FROM users WHERE id = ? AND role <> 'admin'").bind(userId),
       ]);
       return json({ success: true });
