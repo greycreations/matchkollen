@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { Award, BarChart3, CalendarDays, Check, ChevronDown, CirclePlus, Clock3, MapPin, Medal, Minus, Pencil, Play, Plus, RotateCcw, Settings2, Shield, Target, Trash2, Trophy, Users, X } from "lucide-react";
 import type { AuthUser, Permissions } from "@/lib/auth";
+import { ThemePicker } from "@/components/theme";
 
 type Sport = { id: number; name: string };
 type Team = { id: number; sportId: number; name: string; groupName: string; sportName?: string; active: number };
@@ -269,7 +270,7 @@ export default function MatchkollenApp({ user, onLogout }: { user: AuthUser; onL
           <button className={tab === "statistik" ? "nav-tab active" : "nav-tab"} onClick={() => setTab("statistik")}>Statistik</button>
           {user.role === "admin" && <button className={tab === "anvandare" ? "nav-tab active" : "nav-tab"} onClick={() => { setTab("anvandare"); void loadUsers(); }}>Användare</button>}
         </nav>
-        <div className="top-meta signed-in-meta"><span className="online-dot" />{user.name}<span className="role-pill">{roleLabel(user.role)}</span><button className="logout-button" onClick={onLogout}>Logga ut</button></div>
+        <div className="top-meta signed-in-meta"><ThemePicker/><span className="online-dot" />{user.name}<span className="role-pill">{roleLabel(user.role)}</span><button className="logout-button" onClick={onLogout}>Logga ut</button></div>
       </header>
 
       <div className="page-content">

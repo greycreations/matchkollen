@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import "./theme.css";
+import { AppTheme } from "@/components/theme";
 
 export const metadata: Metadata = {
   title: "Matchkollen – matchräknare för lag",
@@ -19,8 +21,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-  <html lang="sv">
-      <body className="antialiased">{children}</body>
+  <html lang="sv" suppressHydrationWarning>
+      <body className="antialiased"><AppTheme>{children}</AppTheme></body>
     </html>
   );
 }

@@ -1,0 +1,50 @@
+:root { color-scheme:light; }
+.theme-picker { display:inline-flex; align-items:center; gap:5px; flex-shrink:0; color:#526d79; }
+.theme-picker select { border:1px solid var(--line); border-radius:7px; padding:6px 7px; background:#fff; color:#365461; font-size:11px; min-height:32px; }
+.auth-brand .auth-brand-name { display:flex; flex-direction:column; gap:3px; }
+.auth-brand .theme-picker { margin-left:auto; font-weight:500; }
+.signed-in-meta { flex-wrap:wrap; justify-content:flex-end; }
+
+html[data-theme="dark"] {
+  color-scheme:dark;
+  --ink:#dae7ed; --navy:#eef6fa; --muted:#adbec8; --line:#354b58;
+  --paper:#101a22; --blue:#84cbe4; --blue-2:#213a49; --white:#192832;
+  --shadow:0 8px 26px rgba(0,0,0,.18);
+  --surface:#192832; --surface-soft:#223540; --theme-text:#dae7ed; --theme-muted:#adbec8;
+}
+[data-theme="dark"] :is(.topbar,.panel,.match-meta-card,.roster-card,.event-card,.empty-state,.stats-empty,.stat-kpi,.auth-card,.loading-card,.lineup-popover,.account-card,.toast) { background:var(--surface); border-color:var(--line); }
+[data-theme="dark"] .auth-shell { background:radial-gradient(ellipse at 15% 20%,#1c3543 0,transparent 38%),radial-gradient(ellipse at 88% 85%,#302a28 0,transparent 35%),var(--paper); }
+[data-theme="dark"] :is(input,select,textarea) { color:var(--theme-text); background:var(--paper); border-color:var(--line); }
+[data-theme="dark"] :is(.form-stack input,.form-stack select,.team-select-label select,.inline-form input,.add-player-form input,.auth-form input,.account-edit-form input,.statistics-filters select,.sport-context select,.account-access select,.theme-picker select) { color:var(--theme-text); background:var(--paper); border-color:var(--line); }
+[data-theme="dark"] input::placeholder { color:#9bb0bc; }
+[data-theme="dark"] :is(.home-match,.team-row,.player-score-card,.card-action,.button-outline,.icon-button,.logout-button,.period-chip:not(.selected),.match-row .remove-match) { color:var(--theme-text); background:var(--surface); border-color:var(--line); }
+[data-theme="dark"] :is(.sport-context,.home-match:hover,.team-row.active,.player-button,.player-number,.jersey,.match-date-block,.match-row.selected,.goals-summary,.permission-note,.finish-match-bar,.competition-match-form,.planning-mode-tabs,.match-view-tabs,.statistics-filters,.account-disabled,.account-editor-row td,.outcome-track,.scorer-track,.event-empty-icon,.auth-step-count,.nav-count) { background:var(--surface-soft); border-color:var(--line); }
+[data-theme="dark"] :is(.button-outline:hover,.icon-button:hover,.player-button:hover,.planning-mode.active,.match-view-tab.active) { background:#2c4350; color:var(--blue); }
+[data-theme="dark"] :is(.button-primary,.brand-mark,.auth-logo,.auth-submit) { background:#236e89; color:#fff; }
+[data-theme="dark"] :is(.button-primary:hover,.auth-submit:hover) { background:#2b809b; }
+[data-theme="dark"] .score-actions button { background:var(--surface-soft); border-color:#68818e; color:var(--navy); }
+[data-theme="dark"] .scoreboard { background:linear-gradient(120deg,#153548,#16475c 52%,#1d5368); }
+[data-theme="dark"] :is(h1,h2,h3,.auth-brand,.auth-card h1,.event-name,.player-button,.card-button-label,.match-row-details>b,.team-row,.roster-row,.data-table td,.data-table td:first-child,.data-table td:first-child b,.team-stat-row,.team-stat-name b,.outcome-item>span b,.goals-summary b,.scorer-info>span b,.card-total-strip b,.finish-match-bar strong,.account-identity b) { color:var(--theme-text); }
+[data-theme="dark"] :is(.subheading,.eyebrow,.top-meta,.brand small,.auth-brand small,.auth-copy,.auth-footer,.auth-footnote,.form-hint,.simple-empty,.chart-empty,.empty-roster,.empty-state p,.stats-empty p,.event-empty,.event-row,.event-row strong,.card-event-row>strong,.match-details,.match-label,.match-title span,.match-row-details small,.lineup-picker,.lineup-option,.mini-empty,.more-events,.footer,.section-kicker,.panel-heading p,.roster-heading p,.event-header p,.stats-panel-title p,.kpi-foot,.stat-kpi small,.data-table th,.data-table td:first-child small,.team-stat-head,.team-stat-name small,.scorer-info>span small,.goals-summary small,.card-total-strip small,.home-match span:not(.sport-badge),.home-match small,.permission-note,.account-role,.account-identity small,.account-role-heading span,.finish-match-bar span,.account-edit-form>label small) { color:var(--theme-muted); }
+[data-theme="dark"] :is(.form-stack label,.team-select-label,.auth-form label,.account-edit-form>label,.statistics-filters label,.sport-filter,.competition-match-heading,.match-status-heading h3) { color:var(--theme-text); }
+[data-theme="dark"] :is(.nav-tab,.text-button,.delete-player,.delete-event,.remove-match,.scorer-rank,.outcome-item>span) { color:var(--theme-muted); }
+[data-theme="dark"] :is(.nav-tab.active,.text-button:hover,.lineup-picker summary,.sport-context strong,.access-sport strong,.account-details summary,.competition-match-title) { color:var(--blue); }
+[data-theme="dark"] :is(.sport-badge,.role-pill,.home-event,.panel-icon,.blue-kpi,.team-avatar,.account-avatar,.empty-icon,.team-stat-name>i,.auth-icon,.auth-step) { color:#a5ddf0; background:#234454; }
+[data-theme="dark"] :is(.panel-icon.soft,.orange-kpi,.away-event,.setup-icon,.setup-step,.live-indicator:not(.completed-indicator):not(.scheduled-indicator)) { color:#ffc394; background:#4a342a; }
+[data-theme="dark"] :is(.green-kpi,.green-icon,.active-state,.completed-indicator,.record-chip,.result-win) { color:#a4ddbc; background:#244236; }
+[data-theme="dark"] :is(.purple-kpi,.purple-icon,.competition-tag) { color:#d0b9f0; background:#3a2e4d; }
+[data-theme="dark"] :is(.result-draw,.rank-1,.record-callout) { color:#f6d39d; background:#423826; }
+[data-theme="dark"] .record-callout b { color:#ffe0af; }
+[data-theme="dark"] :is(.result-loss,.auth-error,.account-delete-button,.toast.error,.card-stats-icon) { color:#ffb9a7; background:#482e2b; border-color:#775047; }
+[data-theme="dark"] .account-delete-button:hover { background:#583631; }
+[data-theme="dark"] .toast.success { color:#a4ddbc; border-color:#426751; }
+[data-theme="dark"] :is(.inactive-state,.scheduled-indicator) { color:#c7d1d7; background:#36444d; }
+[data-theme="dark"] :is(.positive-difference,.account-toggle.reactivate) { color:#9cdbb4; }
+[data-theme="dark"] :is(.negative-difference,.account-toggle) { color:#ffb9a7; }
+[data-theme="dark"] .outcome-total::before { background:var(--surface); }
+[data-theme="dark"] :is(.card-total-strip>div,.scorer-rank,.match-status-heading>span,.match-view-tab>span,.match-view-tab.active>span) { background:var(--surface-soft); color:var(--theme-text); border-color:var(--line); }
+[data-theme="dark"] .card-stats-table td:last-child strong { color:var(--theme-text); }
+[data-theme="dark"] :is(.nav-tabs,.event-row,.card-event-row,.match-list,.match-row,.team-list,.team-row,.roster-list,.roster-row,.compact,.team-stat-table,.team-stat-row,.data-table th,.data-table td,.kpi-foot,.match-status-section,.account-access fieldset,.card-options,.account-role-section,.auth-footnote,.account-details) { border-color:var(--line); }
+[data-theme="dark"] :is(button,input,select):focus-visible { outline-color:#8dd8f2; }
+@media(max-width:480px) { .signed-in-meta { max-width:100%; gap:6px; } .theme-picker select { font-size:10px; } }
+@media print { .theme-picker { display:none; } }

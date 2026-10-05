@@ -4,6 +4,7 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 import { ArrowRight, KeyRound, Shield, Trophy, Users } from "lucide-react";
 import MatchkollenApp from "./matchkollen-app";
 import type { AuthUser } from "@/lib/auth";
+import { ThemePicker } from "@/components/theme";
 
 type SessionState = { setupRequired: boolean; user: AuthUser | null };
 type AuthAction = "login" | "createAdmin" | "logout";
@@ -53,7 +54,7 @@ export default function Home() {
   const setupRequired = session?.setupRequired ?? false;
   return <main className="auth-shell">
     <div className="auth-background-mark auth-mark-one"/><div className="auth-background-mark auth-mark-two"/>
-    <header className="auth-brand"><span className="auth-logo"><Trophy size={20}/></span><span>Matchkollen<small>SPORT & LAG</small></span></header>
+    <header className="auth-brand"><span className="auth-logo"><Trophy size={20}/></span><span className="auth-brand-name">Matchkollen<small>SPORT & LAG</small></span><ThemePicker/></header>
     <section className="auth-card">
       <div className="auth-card-top"><span className={setupRequired ? "auth-step setup-step" : "auth-step"}>{setupRequired ? "FÖRSTA STARTEN" : "VÄLKOMMEN TILLBAKA"}</span><div className="auth-step-count">{setupRequired ? "01 / 02" : <KeyRound size={15}/>}</div></div>
       {setupRequired ? <>

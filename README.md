@@ -45,6 +45,8 @@ Under **Användare** visas separata tabeller för tränare, föräldrar och admi
 
 Startsidan visar planerade matcher i datumordning med tydlig sportmärkning. Sportväljaren filtrerar lag, spelare, matcher, cuper och statistik i hela appen. Admins kontohantering visar alltid alla lag, grupperade efter sport.
 
+Med **Färgtema** i sidhuvudet kan du välja **Ljust**, **Mörkt** eller **System**. System följer enhetens färgtema och är standard. Valet sparas i den aktuella webbläsaren och gäller även inloggningssidan.
+
 Om en match startats av misstag kan admin eller en tränare för laget välja **Tillbaka till planerad** under **Pågående matcher** på fliken **Matcher**. Mål, kort och matchtrupp behålls, och matchen kan startas igen senare.
 
 ## Kortval
