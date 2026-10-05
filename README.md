@@ -111,7 +111,7 @@ Alla användare kan ändra sin egen profilbild på Start. Admin kan ändra trän
 
 ## Familjekopplingar och sportavatarer
 
-Admin kopplar föräldrakonton till barnens spelarprofiler vid kontoregistrering eller senare i konto-/spelarprofilen. När admin registrerar en ny spelare kan befintliga föräldrakonton också väljas. Flera barn per förälder och flera föräldrar per barn stöds. Barn har spelarprofiler, inte en separat inloggningsroll. Kopplingarna ändrar inte lagbehörigheten. Föräldrar ser endast sina egna familjekopplingar i tillgängliga spelarprofiler; tränare ser föräldranamn för sina lag och admin hanterar alla kopplingar. Borttagning av ett konto raderar dess familjekopplingar utan att spelarprofil eller historik påverkas.
+Admin kopplar tränar- och föräldrakonton till barnens spelarprofiler vid kontoregistrering eller senare i konto-/spelarprofilen. När admin registrerar en ny spelare kan befintliga tränar- eller föräldrakonton också väljas. Flera barn per förälder och flera föräldrar per barn stöds. Barn har spelarprofiler, inte en separat inloggningsroll. Kopplingarna ändrar inte lagbehörigheten. Föräldrar ser endast sina egna familjekopplingar i tillgängliga spelarprofiler; tränare ser föräldranamn för sina lag och admin hanterar alla kopplingar. Borttagning av ett konto raderar dess familjekopplingar utan att spelarprofil eller historik påverkas.
 
 Bildverktyget erbjuder 20 egna SVG-maskotar, tio för fotboll och tio för innebandy, som kan väljas och sparas som profilbild. Avatarerna laddas från appens egna filer och kräver ingen extern bildtjänst.
 

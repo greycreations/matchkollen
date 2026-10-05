@@ -145,7 +145,7 @@ export async function POST(request: Request) {
       if (body.parentIds !== undefined && (!Array.isArray(body.parentIds) || body.parentIds.some((id) => !Number.isInteger(id) || Number(id) < 1))) return Response.json({ error: "Välj giltiga föräldrar." }, { status: 400 });
       const parentIds = [...new Set((body.parentIds ?? []) as number[])];
       if (parentIds.length && actor.role !== "admin") return Response.json({ error: "Endast admin kan koppla föräldrakonton." }, { status: 403 });
-      const parents = await db.prepare("SELECT id FROM users WHERE role = 'parent'").all<{ id: number }>();
+      const parents = await db.prepare("SELECT id FROM users WHERE role IN ('parent', 'coach')").all<{ id: number }>();
       if (parentIds.some((id) => !parents.results.some((parent) => parent.id === id))) return Response.json({ error: "Ett föräldrakonto saknas." }, { status: 400 });
       await db.batch([
         db.prepare("INSERT INTO player_profiles (name) VALUES (?)").bind(name),

@@ -223,7 +223,7 @@ const secondParentId = (await call("auth", noTeams)).body.user.id;
 assert.equal((await call("profiles", admin, { action: "family", profileId: profileA, parentIds: [parentUser.id, secondParentId] })).status, 200);
 assert.equal((await call("profiles", coach, { action: "family", profileId: profileA, parentIds: [] })).status, 403);
 assert.equal((await call("profiles", parent, { action: "family", profileId: profileA, parentIds: [] })).status, 403);
-assert.equal((await call("profiles", admin, { action: "family", profileId: profileA, parentIds: [authState.body.user.id] })).status, 400);
+assert.equal((await call("profiles", admin, { action: "family", profileId: profileA, parentIds: [authState.body.user.id, parentUser.id] })).status, 200);
 assert.deepEqual((await call("auth", parent)).body.user.childProfileIds, [profileA]);
 assert.deepEqual((await call("data", noTeams)).body.teams, []);
 assert.equal((await call("profiles", parent)).body.family.length, 1);
@@ -243,6 +243,19 @@ await mutate(coach, { action: "addPlayer", teamId: teamA, name: "Not allowed", n
 assert.equal((await call("auth", admin, { action: "deleteUser", userId: familyUser.id })).status, 200);
 assert.equal(sqlite.prepare("SELECT COUNT(*) AS total FROM parent_children WHERE user_id = ?").get(familyUser.id).total, 0);
 
+// Coaches may also be parents; family links neither grant nor remove team permissions.
+assert.ok((await call("profiles", admin)).body.parents.some((person) => person.id === authState.body.user.id));
+assert.equal((await call("auth", admin, { action: "createUser", name: "Coach parent", email: "coachparent@example.com", password, role: "coach", teamIds: [teamA], childProfileIds: [profileA, profileB] })).status, 201);
+const coachParentCookie = await login("coachparent@example.com");
+const coachParent = (await call("auth", coachParentCookie)).body.user;
+assert.deepEqual(coachParent.childProfileIds.sort(), [profileA, profileB].sort());
+assert.equal(coachParent.role, "coach");
+assert.deepEqual((await call("data", coachParentCookie)).body.teams.map((team) => team.id), [teamA]);
+assert.equal((await call("auth", admin, { action: "updateUser", userId: coachParent.id, name: "Coach parent", email: "coachparent@example.com", role: "parent", teamIds: [teamA] })).status, 200);
+assert.equal((await call("auth", admin, { action: "updateUser", userId: coachParent.id, name: "Coach parent", email: "coachparent@example.com", role: "coach", teamIds: [teamA] })).status, 200);
+assert.equal(sqlite.prepare("SELECT COUNT(*) AS total FROM parent_children WHERE user_id = ?").get(coachParent.id).total, 2);
+await mutate(admin, { action: "addPlayer", teamId: teamA, name: "Coach child", number: 24, parentIds: [coachParent.id] });
+assert.equal(sqlite.prepare("SELECT COUNT(*) AS total FROM parent_children WHERE user_id = ?").get(coachParent.id).total, 3);
 const coachId = authState.body.user.id;
 // A minimal JPEG frame tests validation and authorization; browser QA uses a real crop.
 const photo = Buffer.from([255,216,255,192,0,17,8,0,32,0,32,3,1,17,0,2,17,0,3,17,0,255,217]).toString("base64");

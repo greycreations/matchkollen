@@ -90,7 +90,7 @@ export async function POST(request: Request) {
       if (!["coach", "parent"].includes(String(body.role)) || !Array.isArray(body.teamIds) || body.teamIds.some((value) => !Number.isInteger(value) || Number(value) < 1)) return json({ error: "Välj tränare eller förälder och giltiga lag." }, 400);
       assignedTeamIds = [...new Set(body.teamIds as number[])];
       if (body.childProfileIds !== undefined && (!Array.isArray(body.childProfileIds) || body.childProfileIds.some((id) => !Number.isInteger(id) || Number(id) < 1))) return json({ error: "Välj giltiga spelarprofiler." }, 400);
-      if (role === "parent") {
+      {
         // Older clients may omit this field; editing unrelated fields must retain the links.
         if (body.childProfileIds === undefined && action === "updateUser") {
           const old = await db.prepare("SELECT profile_id AS id FROM parent_children WHERE user_id = ?").bind(Number(body.userId)).all<{ id: number }>();
@@ -98,7 +98,7 @@ export async function POST(request: Request) {
         } else childProfileIds = [...new Set((body.childProfileIds ?? []) as number[])];
         const profiles = await db.prepare("SELECT id FROM player_profiles").all<{ id: number }>();
         if (childProfileIds.some((id) => !profiles.results.some((profile) => profile.id === id))) return json({ error: "En vald spelarprofil saknas." }, 400);
-      } else if (Array.isArray(body.childProfileIds) && body.childProfileIds.length) return json({ error: "Barnkopplingar kräver rollen Förälder." }, 400);
+      }
       const available = await db.prepare("SELECT id FROM teams").all<{ id: number }>();
       if (assignedTeamIds.some((id) => !available.results.some((team) => team.id === id))) return json({ error: "Ett valt lag finns inte längre." }, 400);
     }

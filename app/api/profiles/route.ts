@@ -13,7 +13,7 @@ export async function GET(request: Request) {
   const visible = memberships.results.filter((row) => canAccessTeam(user, Number(row.teamId)));
   const ids = new Set(visible.map((row) => row.profileId));
   const family = await db.prepare("SELECT parent_children.user_id AS userId, parent_children.profile_id AS profileId, users.name AS parentName FROM parent_children JOIN users ON users.id = parent_children.user_id").all();
-  const parents = user.role === "admin" ? await db.prepare("SELECT id, name FROM users WHERE role = 'parent' ORDER BY name").all() : null;
+  const parents = user.role === "admin" ? await db.prepare("SELECT id, name FROM users WHERE role IN ('parent', 'coach') ORDER BY name").all() : null;
   return Response.json({ parents: parents?.results ?? [], family: family.results.filter((row) => (user.role === "admin" || ids.has(row.profileId)) && (user.role !== "parent" || row.userId === user.id)), profiles: profiles.results.filter((row) => user.role === "admin" || ids.has(row.id)), memberships: visible }, { headers: { "Cache-Control": "no-store" } });
 }
 
@@ -40,7 +40,7 @@ export async function POST(request: Request) {
     if (user.role !== "admin") return Response.json({ error: "Endast admin kan ändra familjekopplingar." }, { status: 403 });
     if (!Array.isArray(body.parentIds) || body.parentIds.some((id) => !Number.isInteger(id) || id < 1)) return Response.json({ error: "Välj giltiga föräldrar." }, { status: 400 });
     const parentIds = [...new Set(body.parentIds)];
-    const parents = await db.prepare("SELECT id FROM users WHERE role = 'parent'").all<{ id: number }>();
+    const parents = await db.prepare("SELECT id FROM users WHERE role IN ('parent', 'coach')").all<{ id: number }>();
     if (parentIds.some((id) => !parents.results.some((row) => row.id === id))) return Response.json({ error: "Ett valt föräldrakonto saknas." }, { status: 400 });
     await db.batch([db.prepare("DELETE FROM parent_children WHERE profile_id = ?").bind(profileId), ...parentIds.map((id) => db.prepare("INSERT INTO parent_children (user_id, profile_id) VALUES (?, ?)").bind(id, profileId))]);
   } else if (body.action === "rename") {
