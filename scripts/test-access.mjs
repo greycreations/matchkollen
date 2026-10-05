@@ -47,7 +47,7 @@ globalThis.__testEnv = { DB: {
 } };
 await mkdir("work/tests", { recursive: true });
 const routes = {};
-for (const name of ["auth", "data", "profiles", "photos"]) {
+for (const name of ["auth", "data", "profiles", "photos", "activity"]) {
   const outfile = resolve(`work/tests/${name}.mjs`);
   await build({ entryPoints: [`app/api/${name}/route.ts`], outfile, bundle: true, platform: "node", format: "esm", plugins: [{ name: "test-database", setup(builder) {
     builder.onResolve({ filter: /^cloudflare:workers$/ }, () => ({ path: "environment", namespace: "test" }));
@@ -290,9 +290,64 @@ assert.equal((await call("auth", admin, { action: "setUserActive", userId: activ
 const activeCoach = await login("coach-2@example.com");
 assert.equal((await call("auth", admin, { action: "deleteUser", userId: activeCoachId })).status, 200);
 assert.equal((await call("data", activeCoach)).status, 401);
+// Read-only access creates no audit records; every mutation route is covered.
+const logCount = () => sqlite.prepare("SELECT COUNT(*) AS total FROM activity_log").get().total;
+const initialLogs = logCount();
+assert.equal((await call("activity")).status, 401);
+assert.equal((await call("activity", changed)).status, 401);
+const logResponse = await call("activity", admin);
+assert.equal(logResponse.status, 200);
+assert.equal(logResponse.body.entries.length, 50);
+assert.ok(logResponse.body.next);
+assert.equal(logCount(), initialLogs);
+const nextPage = await routes.activity.GET(new Request(`http://localhost/api/activity?before=${logResponse.body.next}`, { headers: { cookie: admin } }));
+const older = await nextPage.json();
+assert.ok(older.entries.every((entry) => entry.id < logResponse.body.next));
+assert.ok(sqlite.prepare("SELECT * FROM activity_log WHERE user_id = ? AND action = 'login'").get(coachId));
+assert.ok(sqlite.prepare("SELECT * FROM activity_log WHERE category = 'profiles' AND action = 'family'").get());
+assert.ok(sqlite.prepare("SELECT * FROM activity_log WHERE category = 'photos'").get());
+assert.ok(sqlite.prepare("SELECT * FROM activity_log WHERE action = 'deleteUser'").get());
+assert.ok(sqlite.prepare("SELECT * FROM activity_log WHERE user_id = ?").all(coachId).length);
+assert.equal(sqlite.prepare("SELECT id FROM users WHERE id = ?").get(coachId), undefined);
+const descriptions = sqlite.prepare("SELECT description FROM activity_log").all().map((row) => row.description).join(" ");
+assert.equal(descriptions.includes(password), false);
+assert.equal(descriptions.includes(photo), false);
+assert.equal(descriptions.includes('token_hash'), false);
+assert.ok(descriptions.includes('→'));
+const freshParent = await call("auth", admin, { action: "createUser", name: "Audit reader", email: "audit-reader@example.com", password, role: "parent", teamIds: [teamA] });
+assert.equal(freshParent.status, 201);
+const reader = await login("audit-reader@example.com");
+assert.equal((await call("activity", reader)).status, 403);
+const beforeDenied = logCount();
+await mutate(reader, { action: "addPlayer", teamId: teamA, name: "Forbidden" }, 403);
+await call("data", reader); await call("auth", reader); await call("profiles", reader);
+assert.equal(logCount(), beforeDenied);
+const filterResponse = await routes.activity.GET(new Request(`http://localhost/api/activity?userId=${coachId}&category=auth`, { headers: { cookie: admin } }));
+assert.ok((await filterResponse.json()).entries.every((entry) => entry.userId === coachId && entry.category === 'auth'));
+assert.equal((await routes.activity.GET(new Request('http://localhost/api/activity?from=2026-02-30', { headers: { cookie: admin } }))).status, 400);
+const beforeLogout = logCount();
+assert.equal((await call("auth", reader, { action: "logout" })).status, 200);
+assert.equal(logCount(), beforeLogout + 1);
+assert.equal(sqlite.prepare("SELECT action FROM activity_log ORDER BY id DESC LIMIT 1").get().action, 'logout');
+sqlite.prepare("INSERT INTO activity_log(user_id,user_name,action,category,description,created_at) VALUES (999,'Timezone test','login','auth','Boundary',?)").run('2026-10-04T21:59:59.000Z');
+sqlite.prepare("INSERT INTO activity_log(user_id,user_name,action,category,description,created_at) VALUES (999,'Timezone test','login','auth','Boundary',?)").run('2026-10-04T22:00:00.000Z');
+const dateFilter = await routes.activity.GET(new Request('http://localhost/api/activity?userId=999&from=2026-10-05&to=2026-10-05', { headers: { cookie: admin } }));
+assert.equal((await dateFilter.json()).entries.length, 1);
+const beforeRollback = logCount();
+await mutate(admin, { action: "addSport", name: "Audit rollback" });
+const nameCount = sqlite.prepare("SELECT COUNT(*) AS total FROM sports WHERE name = 'Audit rollback'").get().total;
+assert.equal(nameCount, 1);
+assert.equal(logCount(), beforeRollback + 1);
+// Simulated audit storage failure rolls back the associated data write.
+sqlite.exec("CREATE TRIGGER fail_audit BEFORE INSERT ON activity_log BEGIN SELECT RAISE(ABORT, 'test audit failure'); END;");
+const previousConsoleError = console.error;
+console.error = () => {};
+try { await mutate(admin, { action: "addSport", name: "Must roll back" }, 503); } finally { console.error = previousConsoleError; }
+assert.equal(sqlite.prepare("SELECT COUNT(*) AS total FROM sports WHERE name = 'Must roll back'").get().total, 0);
+sqlite.exec("DROP TRIGGER fail_audit;");
 sqlite.close();
 
 const avatarFiles = (await readdir("public/avatars")).filter((file) => file.endsWith(".svg"));
 assert.equal(avatarFiles.length, 20);
 for (const file of avatarFiles) { const svg = await readFile(`public/avatars/${file}`, "utf8"); assert.ok(svg.startsWith('<svg ')); assert.equal(svg.includes('<script'), false); }
-console.log("Passed: family relationships and authorization, sports avatars, SQL migrations, account roles, team isolation, all mutation ownership checks, read-only parents, card choices, cup inheritance, retained history, session revocation.");
+console.log("Passed: audit log, transactional rollback, admin access, Stockholm date filters, family relationships and authorization, sports avatars, SQL migrations, account roles, team isolation, all mutation ownership checks, read-only parents, card choices, cup inheritance, retained history, session revocation.");

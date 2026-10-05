@@ -1,4 +1,23 @@
 :root { color-scheme:light; }
+.activity-panel { padding:20px; }
+.activity-filters { display:flex; flex-wrap:wrap; align-items:end; gap:12px; margin-bottom:14px; }
+.activity-filters label { display:flex; flex-direction:column; gap:7px; font-size:12px; min-width:140px; }
+.activity-filters input,.activity-filters select { padding:9px; border:1px solid var(--line); border-radius:7px; background:var(--paper); color:var(--ink); }
+.activity-table { min-width:720px; }
+.activity-table td { vertical-align:top; line-height:1.6; }
+.activity-table td:last-child { white-space:normal; min-width:260px; overflow-wrap:anywhere; }
+@media(max-width:680px) {
+  .activity-table { min-width:0; display:block; }
+  .activity-table thead { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0,0,0,0); }
+  .activity-table tbody,.activity-table tr,.activity-table td { display:block; }
+  .activity-table tr { padding:12px 0; border-bottom:1px solid var(--line); }
+  .activity-table td,.activity-table td:last-child { border:0; padding:3px 0; min-width:0; white-space:normal; }
+  .activity-table td::before { font-weight:700; margin-right:6px; }
+  .activity-table td:nth-child(1)::before { content:"Tid:"; }
+  .activity-table td:nth-child(2)::before { content:"Användare:"; }
+  .activity-table td:nth-child(3)::before { content:"Typ:"; }
+  .activity-table td:nth-child(4)::before { content:"Ändring:"; }
+}
 .family-picker { border:1px solid var(--line); border-radius:8px; padding:12px; margin:14px 0; }
 .family-picker legend { font-weight:700; }
 .family-picker p { font-size:12px; color:var(--muted); line-height:1.5; }

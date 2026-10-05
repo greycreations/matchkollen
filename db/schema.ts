@@ -113,3 +113,13 @@ export const parentChildren = sqliteTable("parent_children", {
   userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   profileId: integer("profile_id").notNull().references(() => playerProfiles.id, { onDelete: "cascade" }),
 }, (table) => [primaryKey({ columns: [table.userId, table.profileId] }), index("parent_children_profile_idx").on(table.profileId)]);
+
+export const activityLog = sqliteTable("activity_log", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: integer("user_id").notNull(),
+  userName: text("user_name").notNull(),
+  action: text("action").notNull(),
+  category: text("category").notNull(),
+  description: text("description").notNull(),
+  createdAt: text("created_at").notNull(),
+}, (table) => [index("activity_log_time_idx").on(table.createdAt), index("activity_log_user_idx").on(table.userId)]);

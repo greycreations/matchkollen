@@ -1,3 +1,4 @@
+import { auditedDatabase } from "@/lib/activity-log";
 import { env } from "cloudflare:workers";
 import { createSession, digest, emptyPermissions, getAuthUser, isSameOrigin, rolePermissions, passwordRecord, sessionCookie, validEmail, validPassword, verifyPassword } from "@/lib/auth";
 
@@ -37,7 +38,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   if (!isSameOrigin(request)) return json({ error: "Säkerhetskontrollen stoppade begäran eftersom webbadressen inte matchar appens adress. Kontrollera att din proxy skickar vidare Host, X-Forwarded-Host och X-Forwarded-Proto." }, 403);
   try {
-    const db = database();
+    let db = database();
     const body = await request.json() as Record<string, unknown>;
     const action = bodyText(body, "action");
 
@@ -45,6 +46,7 @@ export async function POST(request: Request) {
       const user = await getAuthUser(request);
       const cookie = request.headers.get("cookie") ?? "";
       const token = cookie.split(";").map((item) => item.trim()).find((item) => item.startsWith("matchkollen_session="))?.slice("matchkollen_session=".length);
+      if (user && token) db = await auditedDatabase(db, user, "logout", {}, "auth");
       if (user && token) await db.prepare("DELETE FROM sessions WHERE token_hash = ?").bind(await digest(token)).run();
       return json({ success: true }, 200, { "Set-Cookie": sessionCookie("", request, 0) });
     }
@@ -60,7 +62,7 @@ export async function POST(request: Request) {
       const inserted = await db.prepare("INSERT INTO users (name, email, password_salt, password_hash, role, permissions, active) SELECT ?, ?, ?, ?, 'admin', ?, 1 WHERE NOT EXISTS (SELECT 1 FROM users)").bind(name, email, passwordData.salt, passwordData.hash, JSON.stringify(emptyPermissions)).run();
       if (inserted.meta.changes !== 1) return json({ error: "Installationen har redan konfigurerats. Ladda om sidan och logga in." }, 409);
       const userId = Number(inserted.meta.last_row_id);
-      const session = await createSession(db, userId);
+      const session = await createSession(await auditedDatabase(db, { id: userId, name }, "createAdmin", { name }, "auth"), userId);
       return json({ success: true }, 201, { "Set-Cookie": sessionCookie(session.token, request) });
     }
 
@@ -72,7 +74,7 @@ export async function POST(request: Request) {
         return json({ error: "E-post eller lösenord stämmer inte." }, 401);
       }
       await db.prepare("DELETE FROM sessions WHERE expires_at <= ?").bind(new Date().toISOString()).run();
-      const session = await createSession(db, row.id);
+      const session = await createSession(await auditedDatabase(db, row, "login", {}, "auth"), row.id);
       return json({ success: true }, 200, { "Set-Cookie": sessionCookie(session.token, request) });
     }
 
@@ -80,6 +82,7 @@ export async function POST(request: Request) {
     if (!actor) return json({ error: "Logga in för att fortsätta." }, 401);
     if (actor.role !== "admin") return json({ error: "Endast administratörer kan hantera användarkonton." }, 403);
 
+    db = await auditedDatabase(db, actor, action, body, "accounts");
     let assignedTeamIds: number[] = [];
     let childProfileIds: number[] = [];
     const role = body.role === "coach" ? "coach" : "parent";

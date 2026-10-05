@@ -92,6 +92,7 @@ node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1
 node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0005_roles_teams_cards.sql
 node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0006_bright_loki.sql
 node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0007_gifted_cerebro.sql
+node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0008_conscious_wolf_cub.sql
 ```
 
 Starta sedan förhandsvisningen med `npm run dev`. Lokal databasdata sparas i `.wrangler/state`.
@@ -113,3 +114,9 @@ Alla användare kan ändra sin egen profilbild på Start. Admin kan ändra trän
 Admin kopplar föräldrakonton till barnens spelarprofiler vid kontoregistrering eller senare i konto-/spelarprofilen. När admin registrerar en ny spelare kan befintliga föräldrakonton också väljas. Flera barn per förälder och flera föräldrar per barn stöds. Barn har spelarprofiler, inte en separat inloggningsroll. Kopplingarna ändrar inte lagbehörigheten. Föräldrar ser endast sina egna familjekopplingar i tillgängliga spelarprofiler; tränare ser föräldranamn för sina lag och admin hanterar alla kopplingar. Borttagning av ett konto raderar dess familjekopplingar utan att spelarprofil eller historik påverkas.
 
 Bildverktyget erbjuder 20 egna SVG-maskotar, tio för fotboll och tio för innebandy, som kan väljas och sparas som profilbild. Avatarerna laddas från appens egna filer och kräver ingen extern bildtjänst.
+
+## Aktivitetslogg
+
+Admin-fliken Aktivitetslogg visar lyckade inloggningar, utloggningar och skrivningar till konton, lag, spelare, matcher, matchhändelser, familjekopplingar och profilbilder. Filtrera på användare, typ och datum; äldre poster hämtas i sidor om 50. Datumfilter och visning använder Europe/Stockholm.
+
+Loggen börjar när versionen installeras. Den lagras i SQL-databasen och behåller användarens namn även efter kontoborttagning. Dataändringen och dess loggpost skrivs i samma databastransaktion; en ändring loggas en gång per begäran. Vanliga läsningar och nekade begäranden loggas inte. Lösenord, tokens, sessionsdata och bildinnehåll ingår aldrig. Det finns ingen funktion för att ändra eller radera loggposter i appen.

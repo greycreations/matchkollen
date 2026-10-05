@@ -1,3 +1,4 @@
+import { auditedDatabase } from "@/lib/activity-log";
 import { env } from "cloudflare:workers";
 import { canAccessTeam, getAuthUser, hasPermission, isSameOrigin, type PermissionAction, type PermissionArea } from "@/lib/auth";
 
@@ -49,7 +50,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const db = database();
+    let db = database();
     const actor = await getAuthUser(request);
     if (!actor) return Response.json({ error: "Logga in för att spara ändringar." }, { status: 401, headers: { "Cache-Control": "no-store" } });
     if (!isSameOrigin(request)) return Response.json({ error: "Säkerhetskontrollen stoppade begäran eftersom webbadressen inte matchar appens adress. Kontrollera att din proxy skickar vidare Host, X-Forwarded-Host och X-Forwarded-Proto." }, { status: 403 });
@@ -85,6 +86,7 @@ export async function POST(request: Request) {
       }
       if (teamId === undefined || !canAccessTeam(actor, teamId)) return Response.json({ error: "Du har inte tillgång till det här laget." }, { status: 403 });
     }
+    db = await auditedDatabase(db, actor, action, body, "data");
     const cardSettings = [body.yellowEnabled === false ? 0 : 1, body.redEnabled === false ? 0 : 1, body.greenEnabled === false ? 0 : 1];
     if (action === "updateCardSettings") {
       if (["yellowEnabled", "redEnabled", "greenEnabled"].some((key) => typeof body[key] !== "boolean")) return Response.json({ error: "Välj vilka kort som ska användas." }, { status: 400 });

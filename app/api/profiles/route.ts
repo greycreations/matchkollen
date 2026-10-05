@@ -1,3 +1,4 @@
+import { auditedDatabase } from "@/lib/activity-log";
 import { env } from "cloudflare:workers";
 import { canAccessTeam, getAuthUser, isSameOrigin } from "@/lib/auth";
 import { profileAccess } from "@/lib/profile-access";
@@ -27,13 +28,14 @@ export async function POST(request: Request) {
   try { parsed = JSON.parse(raw); } catch { return Response.json({ error: "Ogiltig begäran." }, { status: 400 }); }
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return Response.json({ error: "Ogiltig begäran." }, { status: 400 });
   const body = parsed as { action?: string; profileId?: number; name?: string; teamId?: number; number?: number | null; active?: boolean; parentIds?: number[] };
-  const db = env.DB;
+  let db = env.DB;
   if (!db) return Response.json({ error: "Databasen är inte tillgänglig." }, { status: 503 });
   const profileId = Number(body.profileId);
   if (!Number.isInteger(profileId) || profileId < 1) return Response.json({ error: "Ogiltig profil." }, { status: 400 });
   const exists = await db.prepare("SELECT id FROM player_profiles WHERE id = ?").bind(profileId).first();
   if (!exists) return Response.json({ error: "Spelarprofilen saknas." }, { status: 404 });
   if (!(await profileAccess(db, user, profileId))) return Response.json({ error: "Du har inte tillgång till spelarprofilen." }, { status: 403 });
+  db = await auditedDatabase(db, user, body.action ?? "", body, "profiles");
   if (body.action === "family") {
     if (user.role !== "admin") return Response.json({ error: "Endast admin kan ändra familjekopplingar." }, { status: 403 });
     if (!Array.isArray(body.parentIds) || body.parentIds.some((id) => !Number.isInteger(id) || id < 1)) return Response.json({ error: "Välj giltiga föräldrar." }, { status: 400 });

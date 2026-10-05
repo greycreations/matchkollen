@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { Award, BarChart3, CalendarDays, Check, ChevronDown, CirclePlus, Clock3, MapPin, Medal, Minus, Pencil, Play, Plus, RotateCcw, Settings2, Shield, Target, Trash2, Trophy, Users, X } from "lucide-react";
 import type { AuthUser, Permissions } from "@/lib/auth";
+import { ActivityLog } from "@/components/activity-log";
 import { ThemePicker } from "@/components/theme";
 import { Avatar, PhotoEditor } from "@/components/profile-photo";
 import { PlayerProfiles } from "@/components/player-profiles";
@@ -19,7 +20,7 @@ type Goal = { id: number; matchId: number; period: number; side: "home" | "away"
 type CardType = "red" | "yellow" | "green";
 type MatchCard = { id: number; matchId: number; period: number; playerId: number; cardType: CardType; createdAt: string; playerName: string; number: number | null };
 type Data = { sports: Sport[]; teams: Team[]; players: Player[]; competitions: Competition[]; matches: Match[]; participants: Participant[]; goals: Goal[]; cards: MatchCard[] };
-type Tab = "start" | "match" | "matcher" | "lag" | "statistik" | "anvandare";
+type Tab = "start" | "match" | "matcher" | "lag" | "statistik" | "anvandare" | "logg";
 type ManagedUser = { childProfileIds: number[]; photoRevision?: number; id: number; name: string; email: string; role: AuthUser["role"]; teamIds: number[]; permissions: Permissions; active: number; createdAt: string; password?: string };
 const roleLabel = (role: AuthUser["role"]) => role === "admin" ? "Admin" : role === "coach" ? "Tränare" : "Förälder";
 const blank: Data = { sports: [], teams: [], players: [], competitions: [], matches: [], participants: [], goals: [], cards: [] };
@@ -275,6 +276,7 @@ export default function MatchkollenApp({ user, onLogout }: { user: AuthUser; onL
           <button className={tab === "lag" ? "nav-tab active" : "nav-tab"} onClick={() => { setTab("lag"); if (user.role === "admin") void loadUsers(); }}>Lag & spelare</button>
           <button className={tab === "statistik" ? "nav-tab active" : "nav-tab"} onClick={() => setTab("statistik")}>Statistik</button>
           {user.role === "admin" && <button className={tab === "anvandare" ? "nav-tab active" : "nav-tab"} onClick={() => { setTab("anvandare"); void loadUsers(); }}>Användare</button>}
+          {user.role === "admin" && <button className={tab === "logg" ? "nav-tab active" : "nav-tab"} onClick={() => setTab("logg")}>Aktivitetslogg</button>}
         </nav>
         <div className="top-meta signed-in-meta"><ThemePicker/><Avatar kind="user" id={user.id} name={user.name} revision={selfPhotoRevision}/><span className="online-dot" />{user.name}<span className="role-pill">{roleLabel(user.role)}</span><button className="logout-button" onClick={onLogout}>Logga ut</button></div>
       </header>
@@ -285,6 +287,7 @@ export default function MatchkollenApp({ user, onLogout }: { user: AuthUser; onL
         {error && <div className="toast error"><span>{error}</span><button onClick={() => setError("")} aria-label="Stäng"><X size={15} /></button></div>}
         {loading ? <div className="loading-card">Hämtar matcher och lag …</div> : null}
 
+        {tab === "logg" && user.role === "admin" && <ActivityLog/>}
         {tab === "start" && <>
           <div className="page-heading"><div><p className="eyebrow">VÄLKOMMEN</p><h1>Matchöversikt</h1><p className="subheading">Välj sport och se lagens kommande matcher.</p></div>{can("matches", "create") && <button className="button button-primary" onClick={() => setTab("matcher")}><Plus size={16}/>Planera match</button>}</div>
           {!allData.teams.length && user.role !== "admin" && <p className="permission-note">Du har inga tilldelade lag. Kontakta administratören för att få tillgång.</p>}

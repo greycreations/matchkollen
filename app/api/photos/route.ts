@@ -1,3 +1,4 @@
+import { auditedDatabase } from "@/lib/activity-log";
 import { env } from "cloudflare:workers";
 import { getAuthUser, isSameOrigin } from "@/lib/auth";
 import { profileAccess } from "@/lib/profile-access";
@@ -55,7 +56,9 @@ export async function POST(request: Request) {
     try { if (!jpegSize(Uint8Array.from(atob(body.photo), (c) => c.charCodeAt(0)))) throw new Error(); }
     catch { return Response.json({ error: "Bilden måste vara en beskuren JPEG-bild." }, { status: 400 }); }
   }
+  const actor = await getAuthUser(request);
+  const db = await auditedDatabase(env.DB!, actor!, "photo", { ...body, ...(body.kind === "player" ? { profileId: body.id } : { userId: body.id }) }, "photos");
   const table = body.kind === "player" ? "player_profiles" : "users";
-  const result = await env.DB!.prepare(`UPDATE ${table} SET photo = ?, photo_revision = photo_revision + 1 WHERE id = ?`).bind(body.photo, Number(body.id)).run();
+  const result = await db.prepare(`UPDATE ${table} SET photo = ?, photo_revision = photo_revision + 1 WHERE id = ?`).bind(body.photo, Number(body.id)).run();
   return result.meta.changes ? Response.json({ success: true }) : Response.json({ error: "Profilen saknas." }, { status: 404 });
 }
