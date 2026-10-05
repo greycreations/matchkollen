@@ -90,11 +90,19 @@ node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1
 node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0003_curvy_loa.sql
 node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0004_cup_competitions.sql
 node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0005_roles_teams_cards.sql
+node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0006_bright_loki.sql
 ```
 
 Starta sedan förhandsvisningen med `npm run dev`. Lokal databasdata sparas i `.wrangler/state`.
 
 Verifiera med `npm run lint`, `npx tsc --noEmit`, `npm run build` och `npm run test:access`. Behörighetstesterna kör de riktiga API-funktionerna och samtliga SQL-migreringar mot en isolerad SQLite-databas och kräver Node.js 22.13 eller senare.
+
 ## Användarhjälp
 
 Start-fliken har ett öppningsbart hjälpavsnitt som beskriver konton, lagtillhörighet, spelare, matchplanering, perioder, avslut, historik, statistik och temaval. Tränare kan kopplas till flera lag i flera sporter under Användare och ser sina tränarlag på startsidan. Vid periodpaus gör man uppehåll i registreringen; appen har ingen separat pausstatus eller matchklocka.
+
+## Spelarprofiler och bilder
+
+Spelare har en gemensam profil och separata lagkopplingar med tröjnummer och aktiv status. Befintliga spelare migreras en och en utan automatisk sammanslagning av lika namn. Matchtruppens ID:n och matchhistoriken behålls. Under Lag & spelare kan admin koppla profiler till alla lag; tränare kan använda profiler som är tillgängliga via deras egna lag och koppla dem till fler tilldelade lag.
+
+Alla användare kan ändra sin egen profilbild på Start. Admin kan ändra tränarnas och föräldrarnas bilder under Användare, och tränare kan ändra sina spelares bilder. Bildverktyget zoomar och centrerar lokalt innan en beskuren 256 × 256 JPEG sparas. Originalbilden laddas inte upp. Bilderna lagras i SQL-databasen och säkerhetskopieras tillsammans med den befintliga Docker-volymen `matchkollen_data`. Bildhämtning kräver inloggning och kontrollerar lagbehörigheten.

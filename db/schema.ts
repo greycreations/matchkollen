@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { index, integer, primaryKey, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { index, integer, primaryKey, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 export const sports = sqliteTable("sports", {
   id: integer("id").primaryKey({ autoIncrement: true }),
@@ -14,13 +14,21 @@ export const teams = sqliteTable("teams", {
   active: integer("active").notNull().default(1),
 });
 
+export const playerProfiles = sqliteTable("player_profiles", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull(),
+  photo: text("photo"),
+  photoRevision: integer("photo_revision").notNull().default(0),
+});
+
 export const players = sqliteTable("players", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   teamId: integer("team_id").notNull(),
+  profileId: integer("profile_id").references(() => playerProfiles.id),
   name: text("name").notNull(),
   number: integer("number"),
   active: integer("active").notNull().default(1),
-});
+}, (table) => [uniqueIndex("players_profile_team_idx").on(table.profileId, table.teamId)]);
 
 export const competitions = sqliteTable("competitions", {
   id: integer("id").primaryKey({ autoIncrement: true }),
@@ -77,6 +85,8 @@ export const cards = sqliteTable("cards", {
 export const users = sqliteTable("users", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   name: text("name").notNull(),
+  photo: text("photo"),
+  photoRevision: integer("photo_revision").notNull().default(0),
   email: text("email").notNull().unique(),
   passwordSalt: text("password_salt").notNull(),
   passwordHash: text("password_hash").notNull(),

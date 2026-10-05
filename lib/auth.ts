@@ -10,6 +10,7 @@ export type AuthUser = {
   id: number;
   name: string;
   email: string;
+  photoRevision?: number;
   role: "admin" | "coach" | "parent";
   permissions: Permissions;
   teamIds: number[];
@@ -34,11 +35,11 @@ export async function getAuthUser(request: Request): Promise<AuthUser | null> {
   const tokenHash = await digest(token);
   const now = new Date().toISOString();
   const row = await db.prepare(
-    "SELECT users.id, users.name, users.email, users.role, users.permissions FROM sessions JOIN users ON users.id = sessions.user_id WHERE sessions.token_hash = ? AND sessions.expires_at > ? AND users.active = 1 LIMIT 1",
-  ).bind(tokenHash, now).first<{ id: number; name: string; email: string; role: "admin" | "coach" | "parent"; permissions: string }>();
+    "SELECT users.id, users.name, users.email, users.role, users.permissions, CASE WHEN users.photo IS NULL THEN 0 ELSE users.photo_revision END AS photoRevision FROM sessions JOIN users ON users.id = sessions.user_id WHERE sessions.token_hash = ? AND sessions.expires_at > ? AND users.active = 1 LIMIT 1",
+  ).bind(tokenHash, now).first<{ id: number; name: string; email: string; role: "admin" | "coach" | "parent"; permissions: string; photoRevision: number }>();
   if (!row) return null;
   const assigned = await db.prepare("SELECT team_id AS teamId FROM user_teams WHERE user_id = ?").bind(row.id).all<{ teamId: number }>();
-  return { id: row.id, name: row.name, email: row.email, role: row.role, permissions: rolePermissions(row.role), teamIds: assigned.results.map((item) => item.teamId) };
+  return { id: row.id, name: row.name, email: row.email, photoRevision: row.photoRevision, role: row.role, permissions: rolePermissions(row.role), teamIds: assigned.results.map((item) => item.teamId) };
 }
 
 export async function passwordRecord(password: string) {

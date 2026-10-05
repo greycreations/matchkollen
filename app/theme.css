@@ -1,4 +1,28 @@
 :root { color-scheme:light; }
+.profile-avatar { position:relative; display:inline-flex; flex-shrink:0; width:36px; height:36px; border-radius:50%; align-items:center; justify-content:center; overflow:hidden; background:var(--blue-2); color:var(--ink); font-size:12px; font-weight:700; }
+.profile-avatar img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+.photo-editor { margin:12px 0; }
+.photo-editor>summary,.player-profile>summary { display:flex; align-items:center; gap:10px; cursor:pointer; padding:10px; list-style:none; }
+.photo-controls { max-width:480px; padding:12px; }
+.photo-controls label,.profiles-panel>label,.profile-body form>label { display:flex; flex-direction:column; gap:7px; margin:10px 0; }
+.photo-controls canvas { max-width:100%; width:256px; border-radius:50%; touch-action:none; cursor:grab; border:2px solid var(--line); }
+.photo-buttons { display:flex; gap:8px; flex-wrap:wrap; }
+.profiles-panel { margin-top:18px; padding:20px; }
+.profiles-panel p,.photo-controls p,.profile-body p { color:var(--muted); font-size:13px; line-height:1.6; }
+.profiles-panel input:not([type="checkbox"]),.photo-controls input:not([type="range"]) { max-width:100%; padding:9px; border:1px solid var(--line); border-radius:7px; }
+.player-profile { border-top:1px solid var(--line); margin-top:12px; }
+.player-profile summary>span:last-child { display:flex; flex-direction:column; gap:4px; min-width:0; }
+.player-profile summary small { color:var(--muted); line-height:1.5; }
+.profile-body { padding:12px; }
+.membership-form { border-top:1px solid var(--line); padding:14px 0; display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+.membership-form>strong { flex:1 0 180px; }
+.membership-form input[type="number"] { width:90px; }
+.account-profile-name { display:flex; gap:8px; align-items:center; }
+.own-profile { margin-top:18px; padding:18px; }
+.player-button .profile-avatar { width:26px; height:26px; font-size:9px; }
+.roster-row>.jersey { flex:0 0 26px; }
+.roster-row>span:nth-child(3) { flex:1; }
+.player-grid { grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); }
 .app-help { margin-top:18px; margin-bottom:18px; padding:0; }
 .app-help>summary { display:flex; align-items:center; gap:12px; padding:18px; cursor:pointer; list-style:none; }
 .app-help>summary::-webkit-details-marker { display:none; }

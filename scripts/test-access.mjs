@@ -14,11 +14,17 @@ for (const file of migrations) {
     sqlite.exec("INSERT INTO users (name,email,password_salt,password_hash,role) VALUES ('Legacy','legacy@example.com','','','user')");
     sqlite.exec("INSERT INTO matches (team_id,home_name,opponent,scheduled_at) VALUES (1,'Legacy','Opponent','2026-10-01T12:00:00Z')");
   }
+  if (file.startsWith("0006")) {
+    sqlite.exec("INSERT INTO players (team_id,name,number) VALUES (1,'Same name',7),(2,'Same name',9)");
+  }
   sqlite.exec(await readFile(`drizzle/${file}`, "utf8"));
 }
 assert.equal(sqlite.prepare("SELECT role FROM users WHERE email = 'legacy@example.com'").get().role, "parent");
 assert.equal(sqlite.prepare("SELECT yellow_enabled + red_enabled + green_enabled AS total FROM matches").get().total, 3);
-sqlite.exec("DELETE FROM matches; DELETE FROM users;");
+assert.equal(sqlite.prepare("SELECT COUNT(*) AS total FROM player_profiles").get().total, 2);
+assert.equal(sqlite.prepare("SELECT COUNT(DISTINCT profile_id) AS total FROM players").get().total, 2);
+assert.equal(sqlite.prepare("SELECT number FROM players WHERE team_id = 2").get().number, 9);
+sqlite.exec("DELETE FROM matches; DELETE FROM users; DELETE FROM players; DELETE FROM player_profiles;");
 
 function statement(sql, values = []) {
   return {
@@ -41,7 +47,7 @@ globalThis.__testEnv = { DB: {
 } };
 await mkdir("work/tests", { recursive: true });
 const routes = {};
-for (const name of ["auth", "data"]) {
+for (const name of ["auth", "data", "profiles", "photos"]) {
   const outfile = resolve(`work/tests/${name}.mjs`);
   await build({ entryPoints: [`app/api/${name}/route.ts`], outfile, bundle: true, platform: "node", format: "esm", plugins: [{ name: "test-database", setup(builder) {
     builder.onResolve({ filter: /^cloudflare:workers$/ }, () => ({ path: "environment", namespace: "test" }));
@@ -192,7 +198,43 @@ assert.equal((await call("data", admin)).body.matches.find((match) => match.id =
 await mutate(admin, await editValues(matchB, { venue: "Historik korrigerad" }));
 assert.equal((await call("data", admin)).body.matches.find((match) => match.id === matchB).status, "completed");
 await mutate(admin, await editValues(matchA, { matchId: 99999 }), 404);
+// Shared player identities retain membership IDs and per-team numbers.
+const profileA = sqlite.prepare("SELECT profile_id AS id FROM players WHERE id = ?").get(playerA).id;
+const profileB = sqlite.prepare("SELECT profile_id AS id FROM players WHERE id = ?").get(playerB).id;
+assert.ok(profileA && profileB && profileA !== profileB);
+assert.equal((await call("profiles", coach)).body.profiles.some((profile) => profile.id === profileB), false);
+assert.equal((await call("profiles", parent, { action: "rename", profileId: profileA, name: "No" })).status, 403);
+assert.equal((await call("profiles", coach, { action: "membership", profileId: profileA, teamId: teamB, number: 12, active: true })).status, 403);
+const historyBefore = sqlite.prepare("SELECT * FROM goals ORDER BY id").all();
+assert.equal((await call("profiles", admin, { action: "membership", profileId: profileA, teamId: teamB, number: 12, active: true })).status, 200);
+assert.equal(sqlite.prepare("SELECT number FROM players WHERE id = ?").get(playerA).number, 7);
+assert.equal(sqlite.prepare("SELECT number FROM players WHERE profile_id = ? AND team_id = ?").get(profileA, teamB).number, 12);
+assert.equal((await call("profiles", admin, { action: "membership", profileId: profileA, teamId: teamB, number: 13, active: false })).status, 200);
+assert.equal((await call("profiles", admin, { action: "membership", profileId: profileA, teamId: teamB, number: 14, active: true })).status, 200);
+assert.equal(sqlite.prepare("SELECT COUNT(*) AS total FROM players WHERE profile_id = ? AND team_id = ?").get(profileA, teamB).total, 1);
+assert.equal((await call("profiles", coach, { action: "rename", profileId: profileA, name: "Shared player" })).status, 200);
+assert.ok(sqlite.prepare("SELECT name FROM players WHERE profile_id = ?").all(profileA).every((row) => row.name === "Shared player"));
+assert.deepEqual(sqlite.prepare("SELECT * FROM goals ORDER BY id").all(), historyBefore);
+assert.equal((await call("profiles", coach, { action: "rename", profileId: profileB, name: "No" })).status, 403);
+assert.equal((await call("profiles", admin, { action: "membership", profileId: profileA, teamId: teamA, number: -1, active: true })).status, 400);
+const parentUser = (await call("auth", parent)).body.user;
 const coachId = authState.body.user.id;
+// A minimal JPEG frame tests validation and authorization; browser QA uses a real crop.
+const photo = Buffer.from([255,216,255,192,0,17,8,0,32,0,32,3,1,17,0,2,17,0,3,17,0,255,217]).toString("base64");
+assert.equal((await call("photos", parent, { kind: "user", id: parentUser.id, photo })).status, 200);
+assert.equal((await call("photos", parent, { kind: "user", id: coachId, photo })).status, 403);
+assert.equal((await call("photos", parent, { kind: "player", id: profileA, photo })).status, 403);
+assert.equal((await call("photos", coach, { kind: "player", id: profileB, photo })).status, 403);
+assert.equal((await call("photos", coach, { kind: "player", id: profileA, photo })).status, 200);
+assert.equal((await call("photos", admin, { kind: "user", id: coachId, photo: "PHN2Zz4=" })).status, 400);
+const imageResponse = await routes.photos.GET(new Request(`http://localhost/api/photos?kind=player&id=${profileA}`, { headers: { cookie: parent } }));
+assert.equal(imageResponse.status, 200);
+assert.equal(imageResponse.headers.get("Content-Type"), "image/jpeg");
+assert.equal((await routes.photos.GET(new Request(`http://localhost/api/photos?kind=player&id=${profileB}`, { headers: { cookie: parent } }))).status, 403);
+assert.equal((await call("photos", parent, { kind: "user", id: parentUser.id, photo: null })).status, 200);
+assert.equal((await call("auth", parent)).body.user.photoRevision, 0);
+assert.equal((await call("photos", coach, { kind: "player", id: profileA, photo: null })).status, 200);
+
 assert.equal((await call("auth", admin, { action: "updateUser", userId: coachId, name: "Former coach", email: "coach-1@example.com", role: "parent", teamIds: [teamB] })).status, 200);
 assert.equal((await call("data", coach)).status, 401);
 const changed = await login("coach-1@example.com");

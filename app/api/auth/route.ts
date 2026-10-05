@@ -23,7 +23,7 @@ export async function GET(request: Request) {
     const db = database();
     const count = await db.prepare("SELECT COUNT(*) AS total FROM users").first<{ total: number }>();
     const user = await getAuthUser(request);
-    const usersResult = user?.role === "admin" ? await db.prepare("SELECT id, name, email, role, permissions, active, created_at AS createdAt FROM users ORDER BY role, name").all<{ id: number; name: string; email: string; role: "admin" | "coach" | "parent"; permissions: string; active: number; createdAt: string }>() : null;
+    const usersResult = user?.role === "admin" ? await db.prepare("SELECT id, name, email, role, permissions, active, CASE WHEN photo IS NULL THEN 0 ELSE photo_revision END AS photoRevision, created_at AS createdAt FROM users ORDER BY role, name").all<{ id: number; name: string; email: string; role: "admin" | "coach" | "parent"; permissions: string; active: number; photoRevision: number; createdAt: string }>() : null;
     const assignments = user?.role === "admin" ? await db.prepare("SELECT user_id AS userId, team_id AS teamId FROM user_teams").all<{ userId: number; teamId: number }>() : null;
     const users = usersResult?.results.map((row) => ({ ...row, permissions: rolePermissions(row.role), teamIds: assignments?.results.filter((item) => item.userId === row.id).map((item) => item.teamId) ?? [] })) ?? undefined;
     return json({ setupRequired: (count?.total ?? 0) === 0, user, ...(users ? { users } : {}) });

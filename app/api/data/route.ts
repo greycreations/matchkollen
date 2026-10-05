@@ -22,7 +22,7 @@ export async function GET(request: Request) {
     const [sports, teams, players, competitions, matches, participants, goals, cards] = await Promise.all([
       db.prepare("SELECT id, name FROM sports ORDER BY name").all(),
       db.prepare("SELECT teams.id, teams.sport_id AS sportId, teams.name, teams.group_name AS groupName, teams.active, sports.name AS sportName FROM teams JOIN sports ON sports.id = teams.sport_id ORDER BY sports.name, teams.group_name, teams.name").all(),
-      db.prepare("SELECT id, team_id AS teamId, name, number, active FROM players ORDER BY name").all(),
+      db.prepare("SELECT players.id, players.team_id AS teamId, players.profile_id AS profileId, CASE WHEN player_profiles.photo IS NULL THEN 0 ELSE player_profiles.photo_revision END AS photoRevision, players.name, players.number, players.active FROM players LEFT JOIN player_profiles ON player_profiles.id = players.profile_id ORDER BY players.name").all(),
       db.prepare("SELECT id, team_id AS teamId, name, kind, yellow_enabled AS yellowEnabled, red_enabled AS redEnabled, green_enabled AS greenEnabled, created_at AS createdAt FROM competitions ORDER BY created_at DESC, name").all(),
       db.prepare("SELECT matches.id, matches.team_id AS teamId, matches.competition_id AS competitionId, competitions.name AS competitionName, competitions.kind AS competitionKind, matches.home_name AS homeName, matches.opponent, matches.scheduled_at AS scheduledAt, matches.venue, matches.periods, matches.status, COALESCE(competitions.yellow_enabled, matches.yellow_enabled) AS yellowEnabled, COALESCE(competitions.red_enabled, matches.red_enabled) AS redEnabled, COALESCE(competitions.green_enabled, matches.green_enabled) AS greenEnabled FROM matches LEFT JOIN competitions ON competitions.id = matches.competition_id ORDER BY matches.scheduled_at DESC").all(),
       db.prepare("SELECT participants.id, participants.match_id AS matchId, participants.player_id AS playerId, players.name AS playerName, players.number, players.active FROM participants JOIN players ON players.id = participants.player_id ORDER BY players.number, players.name").all(),
@@ -139,13 +139,22 @@ export async function POST(request: Request) {
       if (!teamId || !name) return Response.json({ error: "Välj lag och ange spelarens namn." }, { status: 400 });
       const team = await db.prepare("SELECT id FROM teams WHERE id = ? AND active = 1").bind(teamId).first<{ id: number }>();
       if (!team) return Response.json({ error: "Det valda laget hittades inte." }, { status: 404 });
-      await db.prepare("INSERT INTO players (team_id, name, number, active) VALUES (?, ?, ?, 1)").bind(teamId, name, number).run();
+      if (name.length > 100 || (number !== null && (!Number.isInteger(number) || number < 0 || number > 999))) return Response.json({ error: "Kontrollera namn och tröjnummer." }, { status: 400 });
+      await db.batch([
+        db.prepare("INSERT INTO player_profiles (name) VALUES (?)").bind(name),
+        db.prepare("INSERT INTO players (team_id, profile_id, name, number, active) VALUES (?, last_insert_rowid(), ?, ?, 1)").bind(teamId, name, number),
+      ]);
       return Response.json({ success: true });
     }
     if (action === "updatePlayer") {
       const playerId = id("playerId"), name = string("name"), number = body.number === null || body.number === "" ? null : Number(body.number);
       if (!playerId || !name) return Response.json({ error: "Spelarens namn kan inte vara tomt." }, { status: 400 });
-      await db.prepare("UPDATE players SET name = ?, number = ?, active = 1 WHERE id = ?").bind(name, number, playerId).run();
+      if (name.length > 100 || (number !== null && (!Number.isInteger(number) || number < 0 || number > 999))) return Response.json({ error: "Kontrollera namn och tröjnummer." }, { status: 400 });
+      await db.batch([
+        db.prepare("UPDATE player_profiles SET name = ? WHERE id = (SELECT profile_id FROM players WHERE id = ?)").bind(name, playerId),
+        db.prepare("UPDATE players SET name = ? WHERE profile_id = (SELECT profile_id FROM players WHERE id = ?)").bind(name, playerId),
+        db.prepare("UPDATE players SET number = ?, active = 1 WHERE id = ?").bind(number, playerId),
+      ]);
       return Response.json({ success: true });
     }
     if (action === "deletePlayer") {
