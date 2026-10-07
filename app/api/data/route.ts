@@ -59,7 +59,7 @@ export async function POST(request: Request) {
     const id = (key: string) => Number(body[key]);
     const string = (key: string) => typeof body[key] === "string" ? String(body[key]).trim() : "";
     const permissionByAction: Record<string, [PermissionArea, PermissionAction]> = {
-      addSport: ["teams", "create"], updateSport: ["teams", "edit"], deleteSport: ["teams", "delete"], addTeam: ["teams", "create"], updateTeam: ["teams", "edit"], deleteTeam: ["teams", "delete"],
+      addSport: ["teams", "create"], updateSport: ["teams", "edit"], deleteSport: ["teams", "delete"], addTeam: ["teams", "create"], updateTeam: ["teams", "edit"], deleteTeam: ["teams", "delete"], purgeTeam: ["teams", "delete"],
       addPlayer: ["players", "create"], updatePlayer: ["players", "edit"], deletePlayer: ["players", "delete"],
       createMatch: ["matches", "create"], createCompetition: ["matches", "create"], updateCardSettings: ["matches", "edit"], updateMatch: ["matches", "edit"], startMatch: ["matches", "edit"], returnToScheduled: ["matches", "edit"], finishMatch: ["matches", "edit"],
       addParticipant: ["matches", "edit"], removeParticipant: ["matches", "edit"], deleteMatch: ["matches", "delete"],
@@ -126,6 +126,25 @@ export async function POST(request: Request) {
       const teamId = id("teamId"), name = string("name"), groupName = string("groupName");
       if (!teamId || !name) return Response.json({ error: "Lagnamnet kan inte vara tomt." }, { status: 400 });
       await db.prepare("UPDATE teams SET name = ?, group_name = ?, active = 1 WHERE id = ?").bind(name, groupName, teamId).run();
+      return Response.json({ success: true });
+    }
+    if (action === "purgeTeam") {
+      if (actor.role !== "admin") return Response.json({ error: "Endast admin kan ta bort lag permanent." }, { status: 403 });
+      const teamId = id("teamId");
+      if (!Number.isInteger(teamId) || teamId < 1) return Response.json({ error: "Ogiltigt lag." }, { status: 400 });
+      const team = await db.prepare("SELECT active FROM teams WHERE id = ?").bind(teamId).first<{ active: number }>();
+      if (!team) return Response.json({ error: "Laget hittades inte." }, { status: 404 });
+      if (team.active === 1) return Response.json({ error: "Arkivera laget innan det tas bort permanent." }, { status: 409 });
+      await db.batch([
+        db.prepare("DELETE FROM goals WHERE match_id IN (SELECT id FROM matches WHERE team_id = ?)").bind(teamId),
+        db.prepare("DELETE FROM cards WHERE match_id IN (SELECT id FROM matches WHERE team_id = ?)").bind(teamId),
+        db.prepare("DELETE FROM participants WHERE match_id IN (SELECT id FROM matches WHERE team_id = ?)").bind(teamId),
+        db.prepare("DELETE FROM matches WHERE team_id = ?").bind(teamId),
+        db.prepare("DELETE FROM competitions WHERE team_id = ?").bind(teamId),
+        db.prepare("DELETE FROM players WHERE team_id = ?").bind(teamId),
+        db.prepare("DELETE FROM user_teams WHERE team_id = ?").bind(teamId),
+        db.prepare("DELETE FROM teams WHERE id = ?").bind(teamId),
+      ]);
       return Response.json({ success: true });
     }
     if (action === "deleteTeam") {

@@ -130,6 +130,14 @@ html[data-theme="dark"] {
 .player-profile>summary .profile-avatar { width:30px; height:30px; flex-basis:30px; }
 .player-profile>summary:after { content:"+"; margin-left:auto; font-weight:700; }
 .player-profile[open]>summary:after { content:"−"; }
+.player-profile[open] { border:1px solid var(--blue); border-left:4px solid var(--blue); border-radius:8px; margin:10px 0; overflow:hidden; }
+.player-profile[open]>summary { background:var(--blue-2); border-bottom:1px solid var(--blue); padding:10px; }
+.player-profile[open]>.profile-body { padding:12px; }
+.archived-teams { border-top:1px solid var(--line); margin-top:14px; padding-top:12px; }
+.archived-teams>summary { cursor:pointer; font-weight:700; font-size:13px; }
+.archived-team-row { display:flex; gap:10px; align-items:center; justify-content:space-between; border-top:1px solid var(--line); padding:10px 0; flex-wrap:wrap; }
+.archived-team-row>span { display:flex; flex-direction:column; gap:4px; font-size:13px; }
+.archived-team-row small { color:var(--muted); }
 .player-profile summary small { font-size:11px; }
 .profile-management-actions { display:flex; flex-wrap:wrap; gap:8px; }
 .profile-management-actions p { flex-basis:100%; margin:0; }

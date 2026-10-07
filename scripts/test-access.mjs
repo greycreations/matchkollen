@@ -386,6 +386,37 @@ const retained = (await call("data", admin)).body;
 assert.ok(retained.goals.some((row) => row.matchId === lifecycleMatch && row.playerName === "Lifecycle player"));
 assert.ok(retained.cards.some((row) => row.matchId === lifecycleMatch && row.playerName === "Lifecycle player" && row.number === 77));
 assert.ok(sqlite.prepare("SELECT id FROM activity_log WHERE action = 'deleteProfile'").get());
+// Permanent team deletion is admin-only, requires archiving and is transactional.
+await mutate(admin, { action: "addTeam", sportId: sports[0].id, name: "Purge fixture", groupName: "Test" });
+const purgeTeamId = sqlite.prepare("SELECT id FROM teams WHERE name = 'Purge fixture'").get().id;
+assert.equal((await call("profiles", admin, { action: "membership", profileId: profileA, teamId: purgeTeamId, number: 88, active: true })).status, 200);
+const purgePlayer = sqlite.prepare("SELECT id FROM players WHERE profile_id = ? AND team_id = ?").get(profileA, purgeTeamId).id;
+await mutate(admin, { action: "createCompetition", teamId: purgeTeamId, name: "Purge cup", kind: "cup", matches: [{ opponent: "Purge opponent", scheduledAt: "2026-10-15T12:00:00Z", periods: 3 }] });
+const purgeMatch = sqlite.prepare("SELECT id FROM matches WHERE team_id = ?").get(purgeTeamId).id;
+await mutate(admin, { action: "addParticipant", matchId: purgeMatch, playerId: purgePlayer });
+await mutate(admin, { action: "goal", matchId: purgeMatch, playerId: purgePlayer, period: 1, side: "home" });
+await mutate(admin, { action: "card", matchId: purgeMatch, playerId: purgePlayer, period: 1, cardType: "yellow" });
+const purgeReader = (await call("auth", await login("audit-reader@example.com"))).body.user;
+sqlite.prepare("INSERT INTO user_teams(user_id,team_id) VALUES (?,?)").run(purgeReader.id, purgeTeamId);
+await mutate(await login("coachparent@example.com"), { action: "purgeTeam", teamId: purgeTeamId }, 403);
+await mutate(await login("audit-reader@example.com"), { action: "purgeTeam", teamId: purgeTeamId }, 403);
+await mutate(admin, { action: "purgeTeam", teamId: purgeTeamId }, 409);
+await mutate(admin, { action: "deleteTeam", teamId: purgeTeamId });
+const otherMatchesBefore = sqlite.prepare("SELECT id FROM matches WHERE team_id <> ? ORDER BY id").all(purgeTeamId);
+const familyBeforePurge = sqlite.prepare("SELECT * FROM parent_children ORDER BY user_id,profile_id").all();
+sqlite.exec("CREATE TRIGGER fail_purge_log BEFORE INSERT ON activity_log BEGIN SELECT RAISE(ABORT, 'test rollback'); END;");
+const purgeConsole = console.error; console.error = () => {};
+try { await mutate(admin, { action: "purgeTeam", teamId: purgeTeamId }, 503); } finally { console.error = purgeConsole; }
+assert.ok(sqlite.prepare("SELECT id FROM matches WHERE id = ?").get(purgeMatch));
+sqlite.exec("DROP TRIGGER fail_purge_log;");
+await mutate(admin, { action: "purgeTeam", teamId: purgeTeamId });
+for (const table of ["players", "matches", "competitions", "user_teams"]) assert.equal(sqlite.prepare(`SELECT COUNT(*) AS total FROM ${table} WHERE team_id = ?`).get(purgeTeamId).total, 0);
+for (const table of ["goals", "cards", "participants"]) assert.equal(sqlite.prepare(`SELECT COUNT(*) AS total FROM ${table} WHERE match_id = ?`).get(purgeMatch).total, 0);
+assert.equal(sqlite.prepare("SELECT id FROM teams WHERE id = ?").get(purgeTeamId), undefined);
+assert.ok(sqlite.prepare("SELECT id FROM player_profiles WHERE id = ?").get(profileA));
+assert.deepEqual(sqlite.prepare("SELECT * FROM parent_children ORDER BY user_id,profile_id").all(), familyBeforePurge);
+assert.deepEqual(sqlite.prepare("SELECT id FROM matches ORDER BY id").all(), otherMatchesBefore);
+assert.ok(sqlite.prepare("SELECT id FROM activity_log WHERE action = 'purgeTeam'").get());
 sqlite.close();
 
 const avatarFiles = (await readdir("public/avatars")).filter((file) => file.endsWith(".svg"));

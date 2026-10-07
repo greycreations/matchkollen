@@ -3,7 +3,7 @@ import type { AuthUser } from "./auth";
 const labels: Record<string, string> = {
   login: "Loggade in", logout: "Loggade ut", createAdmin: "Skapade administratörskonto",
   createUser: "Skapade användarkonto", updateUser: "Ändrade konto, roll eller lagtillgång", deleteUser: "Tog bort användarkonto", setUserActive: "Ändrade kontots aktiva status",
-  addSport: "Lade till sport", updateSport: "Ändrade sport", deleteSport: "Tog bort sport", addTeam: "Lade till lag", updateTeam: "Ändrade lag", deleteTeam: "Arkiverade lag",
+  addSport: "Lade till sport", updateSport: "Ändrade sport", deleteSport: "Tog bort sport", addTeam: "Lade till lag", updateTeam: "Ändrade lag", deleteTeam: "Arkiverade lag", purgeTeam: "Tog bort lag permanent",
   addPlayer: "Skapade spelarprofil", updatePlayer: "Ändrade spelare", deletePlayer: "Inaktiverade spelare i lag",
   createMatch: "Planerade match", createCompetition: "Skapade cup eller sammandrag", updateMatch: "Ändrade matchinställningar", updateCardSettings: "Ändrade kortval",
   startMatch: "Startade match", returnToScheduled: "Återställde match till planerad", finishMatch: "Avslutade match", deleteMatch: "Tog bort match",

@@ -127,3 +127,5 @@ Loggen börjar när versionen installeras. Den lagras i SQL-databasen och behål
 Spelarprofiler kan inaktiveras globalt och aktiveras igen utan att lagens tidigare aktiva status ändras. Permanent borttagning raderar profilbild, familje- och lagkopplingar samt trupputtagningar. Sparade mål och kort behålls med namn och nummer som historik. Tränare får endast hantera hela profilen om de har tillgång till alla dess lag.
 
 Spelartrupp på matchlistan öppnar matchinställningarna. Trupp och inställningar valideras och sparas i samma transaktion.
+
+Admin kan ta bort arkiverade lag permanent under Lag & spelare → Arkiverade lag. Lagets matcher, cuper, händelser, statistik och lagbehörigheter raderas tillsammans i en transaktion. Spelarprofiler och familjekopplingar behålls, liksom spelarens kopplingar till andra lag. Åtgärden kräver bekräftelse och sparas i aktivitetsloggen.
