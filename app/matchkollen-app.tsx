@@ -205,7 +205,7 @@ export default function MatchkollenApp({ user, onLogout }: { user: AuthUser; onL
     const saved = await run({ action: "createMatch", ...matchForm, competitionId: matchForm.competitionId ? Number(matchForm.competitionId) : null, periods: Number(matchForm.periods) }, "Matchen är sparad.");
     if (!saved) return;
     setMatchForm((f) => ({ ...f, opponent: "", scheduledAt: "", venue: "" }));
-    setTab("match");
+    setTab("matcher");
   }
 
   async function createCompetition(e: FormEvent<HTMLFormElement>) {
@@ -214,7 +214,7 @@ export default function MatchkollenApp({ user, onLogout }: { user: AuthUser; onL
     if (!saved) return;
     setCompetitionForm((form) => ({ ...form, name: "" }));
     setCompetitionMatches([{ opponent: "", scheduledAt: "", venue: "", periods: "3" }]);
-    setTab("match");
+    setTab("matcher");
   }
 
   async function startMatch(matchId: number, openLiveView = false) {
