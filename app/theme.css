@@ -150,3 +150,14 @@ html[data-theme="dark"] {
 .membership-form>label { margin:0; font-size:12px; }
 .membership-form input[type="number"] { width:65px; padding:6px; }
 .membership-form .button,.profile-name-form .button { padding:8px 10px; }
+.card-history { margin-top:14px; }
+.card-history>summary { display:inline-flex; align-items:center; gap:8px; cursor:pointer; list-style:none; }
+.card-history>summary::after { content:"+"; margin-left:6px; }
+.card-history[open]>summary::after { content:"−"; }
+.card-history>summary::-webkit-details-marker { display:none; }
+.card-history-list { list-style:none; padding:0; margin:8px 0 0; }
+.card-history-list li { display:grid; grid-template-columns:1fr 1.3fr 1.3fr; gap:12px; padding:12px 0; border-top:1px solid var(--line); font-size:12px; overflow-wrap:anywhere; }
+.card-history-list li>div { display:flex; flex-direction:column; gap:4px; min-width:0; }
+.card-history-list small { color:var(--muted); font-size:11px; line-height:1.5; }
+.card-history-type { display:flex; align-items:center; gap:6px; }
+@media (max-width:680px) { .card-history-list li { grid-template-columns:1fr; gap:8px; } }
