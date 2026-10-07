@@ -358,6 +358,34 @@ console.error = () => {};
 try { await mutate(admin, { action: "addSport", name: "Must roll back" }, 503); } finally { console.error = previousConsoleError; }
 assert.equal(sqlite.prepare("SELECT COUNT(*) AS total FROM sports WHERE name = 'Must roll back'").get().total, 0);
 sqlite.exec("DROP TRIGGER fail_audit;");
+// Compact profile lifecycle and atomic match-lineup editing.
+await mutate(admin, { action: "addPlayer", teamId: teamA, name: "Lifecycle player", number: 77 });
+const lifecycle = sqlite.prepare("SELECT id, profile_id AS profileId FROM players WHERE name = 'Lifecycle player'").get();
+const lifecycleMatchResult = await call("data", admin, { action: "createMatch", teamId: teamA, homeName: "Test", opponent: "Lifecycle", scheduledAt: "2026-10-12T10:00:00Z", periods: 2 });
+assert.equal(lifecycleMatchResult.status, 200);
+const lifecycleMatch = lifecycleMatchResult.body.matchId;
+assert.equal((await call("data", admin, await editValues(lifecycleMatch, { participantIds: [lifecycle.id, lifecycle.id] }))).status, 200);
+assert.equal(sqlite.prepare("SELECT COUNT(*) AS total FROM participants WHERE match_id = ?").get(lifecycleMatch).total, 1);
+assert.equal((await call("data", admin, await editValues(lifecycleMatch, { opponent: "Must not save", participantIds: [playerB] }))).status, 400);
+assert.equal(sqlite.prepare("SELECT opponent FROM matches WHERE id = ?").get(lifecycleMatch).opponent, "Lifecycle");
+assert.equal((await call("profiles", await login("audit-reader@example.com"), { action: "setProfileActive", profileId: lifecycle.profileId, active: false })).status, 403);
+assert.equal((await call("profiles", await login("coachparent@example.com"), { action: "deleteProfile", profileId: profileA })).status, 403);
+assert.equal((await call("profiles", admin, { action: "setProfileActive", profileId: lifecycle.profileId, active: false })).status, 200);
+assert.equal((await call("data", admin)).body.players.find((row) => row.id === lifecycle.id).active, 0);
+await mutate(admin, { action: "removeParticipant", matchId: lifecycleMatch, playerId: lifecycle.id });
+await mutate(admin, { action: "addParticipant", matchId: lifecycleMatch, playerId: lifecycle.id }, 400);
+assert.equal((await call("profiles", admin, { action: "setProfileActive", profileId: lifecycle.profileId, active: true })).status, 200);
+await mutate(admin, { action: "addParticipant", matchId: lifecycleMatch, playerId: lifecycle.id });
+await mutate(admin, { action: "startMatch", matchId: lifecycleMatch });
+await mutate(admin, { action: "goal", matchId: lifecycleMatch, playerId: lifecycle.id, period: 1, side: "home" });
+await mutate(admin, { action: "card", matchId: lifecycleMatch, playerId: lifecycle.id, period: 1, cardType: "yellow" });
+assert.equal((await call("profiles", admin, { action: "deleteProfile", profileId: lifecycle.profileId })).status, 200);
+assert.equal(sqlite.prepare("SELECT id FROM player_profiles WHERE id = ?").get(lifecycle.profileId), undefined);
+assert.equal(sqlite.prepare("SELECT COUNT(*) AS total FROM players WHERE profile_id = ?").get(lifecycle.profileId).total, 0);
+const retained = (await call("data", admin)).body;
+assert.ok(retained.goals.some((row) => row.matchId === lifecycleMatch && row.playerName === "Lifecycle player"));
+assert.ok(retained.cards.some((row) => row.matchId === lifecycleMatch && row.playerName === "Lifecycle player" && row.number === 77));
+assert.ok(sqlite.prepare("SELECT id FROM activity_log WHERE action = 'deleteProfile'").get());
 sqlite.close();
 
 const avatarFiles = (await readdir("public/avatars")).filter((file) => file.endsWith(".svg"));

@@ -15,6 +15,7 @@ export const teams = sqliteTable("teams", {
 });
 
 export const playerProfiles = sqliteTable("player_profiles", {
+  active: integer("active").notNull().default(1),
   id: integer("id").primaryKey({ autoIncrement: true }),
   name: text("name").notNull(),
   photo: text("photo"),
@@ -74,6 +75,8 @@ export const goals = sqliteTable("goals", {
 });
 
 export const cards = sqliteTable("cards", {
+  playerName: text("player_name"),
+  number: integer("number"),
   id: integer("id").primaryKey({ autoIncrement: true }),
   matchId: integer("match_id").notNull(),
   period: integer("period").notNull(),

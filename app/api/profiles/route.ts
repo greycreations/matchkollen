@@ -8,7 +8,7 @@ export async function GET(request: Request) {
   if (!user) return Response.json({ error: "Logga in först." }, { status: 401 });
   const db = env.DB;
   if (!db) return Response.json({ error: "Databasen är inte tillgänglig." }, { status: 503 });
-  const profiles = await db.prepare("SELECT id, name, CASE WHEN photo IS NULL THEN 0 ELSE photo_revision END AS photoRevision FROM player_profiles ORDER BY name").all();
+  const profiles = await db.prepare("SELECT id, name, active, CASE WHEN photo IS NULL THEN 0 ELSE photo_revision END AS photoRevision FROM player_profiles ORDER BY name").all();
   const memberships = await db.prepare("SELECT id, profile_id AS profileId, team_id AS teamId, number, active FROM players ORDER BY id").all();
   const visible = memberships.results.filter((row) => canAccessTeam(user, Number(row.teamId)));
   const ids = new Set(visible.map((row) => row.profileId));
@@ -36,7 +36,23 @@ export async function POST(request: Request) {
   if (!exists) return Response.json({ error: "Spelarprofilen saknas." }, { status: 404 });
   if (!(await profileAccess(db, user, profileId))) return Response.json({ error: "Du har inte tillgång till spelarprofilen." }, { status: 403 });
   db = await auditedDatabase(db, user, body.action ?? "", body, "profiles");
-  if (body.action === "family") {
+  if (body.action === "setProfileActive" || body.action === "deleteProfile") {
+    const links = await db.prepare("SELECT team_id AS teamId FROM players WHERE profile_id = ?").bind(profileId).all<{ teamId: number }>();
+    if (user.role !== "admin" && links.results.some((row) => !canAccessTeam(user, row.teamId))) return Response.json({ error: "Endast admin kan ändra hela profilen när den tillhör andra lag." }, { status: 403 });
+    if (body.action === "setProfileActive") {
+      if (typeof body.active !== "boolean") return Response.json({ error: "Välj giltig status." }, { status: 400 });
+      await db.prepare("UPDATE player_profiles SET active = ? WHERE id = ?").bind(body.active ? 1 : 0, profileId).run();
+    } else {
+      await db.batch([
+        db.prepare("UPDATE cards SET player_name = COALESCE(player_name, (SELECT name FROM players WHERE id = cards.player_id)), number = COALESCE(number, (SELECT number FROM players WHERE id = cards.player_id)) WHERE player_id IN (SELECT id FROM players WHERE profile_id = ?)").bind(profileId),
+        db.prepare("UPDATE goals SET player_id = NULL WHERE player_id IN (SELECT id FROM players WHERE profile_id = ?)").bind(profileId),
+        db.prepare("DELETE FROM participants WHERE player_id IN (SELECT id FROM players WHERE profile_id = ?)").bind(profileId),
+        db.prepare("DELETE FROM parent_children WHERE profile_id = ?").bind(profileId),
+        db.prepare("DELETE FROM players WHERE profile_id = ?").bind(profileId),
+        db.prepare("DELETE FROM player_profiles WHERE id = ?").bind(profileId),
+      ]);
+    }
+  } else if (body.action === "family") {
     if (user.role !== "admin") return Response.json({ error: "Endast admin kan ändra familjekopplingar." }, { status: 403 });
     if (!Array.isArray(body.parentIds) || body.parentIds.some((id) => !Number.isInteger(id) || id < 1)) return Response.json({ error: "Välj giltiga föräldrar." }, { status: 400 });
     const parentIds = [...new Set(body.parentIds)];

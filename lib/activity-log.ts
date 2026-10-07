@@ -8,9 +8,9 @@ const labels: Record<string, string> = {
   createMatch: "Planerade match", createCompetition: "Skapade cup eller sammandrag", updateMatch: "Ändrade matchinställningar", updateCardSettings: "Ändrade kortval",
   startMatch: "Startade match", returnToScheduled: "Återställde match till planerad", finishMatch: "Avslutade match", deleteMatch: "Tog bort match",
   addParticipant: "Lade till spelare i matchtrupp", removeParticipant: "Tog bort spelare ur matchtrupp", goal: "Registrerade mål", card: "Registrerade kort", updateGoal: "Ändrade mål", deleteGoal: "Tog bort mål", deleteCard: "Tog bort kort", resetMatch: "Nollställde matchhändelser",
-  rename: "Ändrade spelarprofilens namn", membership: "Ändrade lagkoppling", family: "Ändrade föräldrakopplingar", photo: "Ändrade profilbild",
+  setProfileActive: "Ändrade spelarprofilens aktiva status", deleteProfile: "Tog bort spelarprofil", rename: "Ändrade spelarprofilens namn", membership: "Ändrade lagkoppling", family: "Ändrade föräldrakopplingar", photo: "Ändrade profilbild",
 };
-const fields: Record<string, string> = { name: "Namn", opponent: "Motståndare", homeName: "Vårt lag", number: "Tröjnummer", venue: "Plats", scheduledAt: "Tid", periods: "Perioder", status: "Status", role: "Roll", active: "Aktiv", period: "Period", side: "Lag", cardType: "Kort", yellowEnabled: "Gula kort", redEnabled: "Röda kort", greenEnabled: "Gröna kort", teamIds: "Lagkopplingar", childProfileIds: "Barnkopplingar", parentIds: "Föräldrakopplingar" };
+const fields: Record<string, string> = { name: "Namn", opponent: "Motståndare", homeName: "Vårt lag", number: "Tröjnummer", venue: "Plats", scheduledAt: "Tid", periods: "Perioder", status: "Status", role: "Roll", active: "Aktiv", period: "Period", side: "Lag", cardType: "Kort", yellowEnabled: "Gula kort", redEnabled: "Röda kort", greenEnabled: "Gröna kort", teamIds: "Lagkopplingar", childProfileIds: "Barnkopplingar", parentIds: "Föräldrakopplingar", participantIds: "Matchtrupp" };
 
 // Audit and mutation commit together. Record one event per request, never raw bodies,
 // credentials, session tokens or image payloads. User identity is a durable snapshot.

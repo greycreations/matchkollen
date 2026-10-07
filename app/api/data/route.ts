@@ -23,12 +23,12 @@ export async function GET(request: Request) {
     const [sports, teams, players, competitions, matches, participants, goals, cards] = await Promise.all([
       db.prepare("SELECT id, name FROM sports ORDER BY name").all(),
       db.prepare("SELECT teams.id, teams.sport_id AS sportId, teams.name, teams.group_name AS groupName, teams.active, sports.name AS sportName FROM teams JOIN sports ON sports.id = teams.sport_id ORDER BY sports.name, teams.group_name, teams.name").all(),
-      db.prepare("SELECT players.id, players.team_id AS teamId, players.profile_id AS profileId, CASE WHEN player_profiles.photo IS NULL THEN 0 ELSE player_profiles.photo_revision END AS photoRevision, players.name, players.number, players.active FROM players LEFT JOIN player_profiles ON player_profiles.id = players.profile_id ORDER BY players.name").all(),
+      db.prepare("SELECT players.id, players.team_id AS teamId, players.profile_id AS profileId, CASE WHEN player_profiles.photo IS NULL THEN 0 ELSE player_profiles.photo_revision END AS photoRevision, players.name, players.number, CASE WHEN player_profiles.active = 1 THEN players.active ELSE 0 END AS active FROM players LEFT JOIN player_profiles ON player_profiles.id = players.profile_id ORDER BY players.name").all(),
       db.prepare("SELECT id, team_id AS teamId, name, kind, yellow_enabled AS yellowEnabled, red_enabled AS redEnabled, green_enabled AS greenEnabled, created_at AS createdAt FROM competitions ORDER BY created_at DESC, name").all(),
       db.prepare("SELECT matches.id, matches.team_id AS teamId, matches.competition_id AS competitionId, competitions.name AS competitionName, competitions.kind AS competitionKind, matches.home_name AS homeName, matches.opponent, matches.scheduled_at AS scheduledAt, matches.venue, matches.periods, matches.status, COALESCE(competitions.yellow_enabled, matches.yellow_enabled) AS yellowEnabled, COALESCE(competitions.red_enabled, matches.red_enabled) AS redEnabled, COALESCE(competitions.green_enabled, matches.green_enabled) AS greenEnabled FROM matches LEFT JOIN competitions ON competitions.id = matches.competition_id ORDER BY matches.scheduled_at DESC").all(),
-      db.prepare("SELECT participants.id, participants.match_id AS matchId, participants.player_id AS playerId, players.name AS playerName, players.number, players.active FROM participants JOIN players ON players.id = participants.player_id ORDER BY players.number, players.name").all(),
+      db.prepare("SELECT participants.id, participants.match_id AS matchId, participants.player_id AS playerId, players.name AS playerName, players.number, CASE WHEN player_profiles.active = 1 THEN players.active ELSE 0 END AS active FROM participants JOIN players ON players.id = participants.player_id JOIN player_profiles ON player_profiles.id = players.profile_id ORDER BY players.number, players.name").all(),
       db.prepare("SELECT goals.id, goals.match_id AS matchId, goals.period, goals.side, goals.player_id AS playerId, goals.player_name AS playerName, goals.number, goals.created_at AS createdAt FROM goals ORDER BY goals.id").all(),
-      db.prepare("SELECT cards.id, cards.match_id AS matchId, cards.period, cards.player_id AS playerId, cards.card_type AS cardType, cards.created_at AS createdAt, players.name AS playerName, players.number FROM cards JOIN players ON players.id = cards.player_id ORDER BY cards.id").all(),
+      db.prepare("SELECT cards.id, cards.match_id AS matchId, cards.period, cards.player_id AS playerId, cards.card_type AS cardType, cards.created_at AS createdAt, COALESCE(cards.player_name, players.name) AS playerName, COALESCE(cards.number, players.number) AS number FROM cards LEFT JOIN players ON players.id = cards.player_id ORDER BY cards.id").all(),
     ]);
     const visibleTeams = teams.results.filter((team) => canAccessTeam(user, Number(team.id)));
     const teamIds = new Set(visibleTeams.map((team) => team.id));
@@ -223,8 +223,16 @@ export async function POST(request: Request) {
         if (!competition || competition.teamId !== teamId) return Response.json({ error: "Cupen eller sammandraget tillhör inte det valda laget." }, { status: 400 });
         if (actor.role !== "admin" && cardSettings.some((value, index) => value !== [competition.yellowEnabled, competition.redEnabled, competition.greenEnabled][index])) return Response.json({ error: "Endast admin kan ändra cupens gemensamma kortval." }, { status: 403 });
       }
+      let participantIds: number[] | undefined;
+      if (body.participantIds !== undefined) {
+        if (!Array.isArray(body.participantIds) || body.participantIds.some((value) => !Number.isInteger(value) || Number(value) < 1)) return Response.json({ error: "Välj giltiga spelare." }, { status: 400 });
+        participantIds = [...new Set(body.participantIds as number[])];
+        const eligible = await db.prepare("SELECT players.id FROM players JOIN player_profiles ON player_profiles.id = players.profile_id WHERE players.team_id = ? AND ((players.active = 1 AND player_profiles.active = 1) OR players.id IN (SELECT player_id FROM participants WHERE match_id = ?))").bind(teamId, matchId).all<{ id: number }>();
+        if (participantIds.some((value) => !eligible.results.some((row) => row.id === value))) return Response.json({ error: "En vald spelare är inaktiv eller tillhör ett annat lag." }, { status: 400 });
+      }
       const statements = [db.prepare("UPDATE matches SET team_id = ?, competition_id = ?, home_name = ?, opponent = ?, scheduled_at = ?, venue = ?, periods = ?, status = ?, yellow_enabled = ?, red_enabled = ?, green_enabled = ? WHERE id = ?").bind(teamId, competitionId, homeName, opponent, new Date(scheduledAt).toISOString(), venue, periods, status, ...cardSettings, matchId)];
       if (competitionId !== null && actor.role === "admin") statements.push(db.prepare("UPDATE competitions SET yellow_enabled = ?, red_enabled = ?, green_enabled = ? WHERE id = ?").bind(...cardSettings, competitionId));
+      if (participantIds !== undefined) statements.push(db.prepare("DELETE FROM participants WHERE match_id = ?").bind(matchId), ...participantIds.map((playerId) => db.prepare("INSERT INTO participants (match_id, player_id) VALUES (?, ?)").bind(matchId, playerId)));
       await db.batch(statements);
       return Response.json({ success: true });
     }
@@ -244,7 +252,7 @@ export async function POST(request: Request) {
     if (action === "addParticipant" || action === "removeParticipant") {
       const matchId = id("matchId"), playerId = id("playerId");
       if (action === "addParticipant") {
-        const eligible = await db.prepare("SELECT players.id FROM players JOIN teams ON teams.id = players.team_id JOIN matches ON matches.team_id = teams.id WHERE players.id = ? AND matches.id = ? AND players.active = 1 AND teams.active = 1").bind(playerId, matchId).first<{ id: number }>();
+        const eligible = await db.prepare("SELECT players.id FROM players JOIN teams ON teams.id = players.team_id JOIN matches ON matches.team_id = teams.id WHERE players.id = ? AND matches.id = ? AND players.active = 1 AND players.profile_id IN (SELECT id FROM player_profiles WHERE active = 1) AND teams.active = 1").bind(playerId, matchId).first<{ id: number }>();
         if (!eligible) return Response.json({ error: "Spelaren tillhör inte matchens aktiva trupp." }, { status: 400 });
         await db.prepare("INSERT OR IGNORE INTO participants (match_id, player_id) VALUES (?, ?)").bind(matchId, playerId).run();
       }
@@ -260,7 +268,7 @@ export async function POST(request: Request) {
       const playerId = body.playerId ? Number(body.playerId) : null;
       let playerName: string | null = null, number: number | null = null;
       if (playerId !== null) {
-        const player = await db.prepare("SELECT players.name, players.number FROM players JOIN participants ON participants.player_id = players.id WHERE players.id = ? AND participants.match_id = ? AND players.active = 1").bind(playerId, matchId).first<{ name: string; number: number | null }>();
+        const player = await db.prepare("SELECT players.name, players.number FROM players JOIN participants ON participants.player_id = players.id WHERE players.id = ? AND participants.match_id = ? AND players.active = 1 AND players.profile_id IN (SELECT id FROM player_profiles WHERE active = 1)").bind(playerId, matchId).first<{ name: string; number: number | null }>();
         if (!player) return Response.json({ error: "Spelaren måste vara aktiv och vald till matchtruppen." }, { status: 400 });
         playerName = player.name; number = player.number;
       }
@@ -276,9 +284,9 @@ export async function POST(request: Request) {
       const enabled = cardType === "yellow" ? match.yellowEnabled : cardType === "red" ? match.redEnabled : match.greenEnabled;
       if (!enabled) return Response.json({ error: "Den korttypen är avstängd för matchen." }, { status: 400 });
       if (period > match.periods) return Response.json({ error: `Matchen har bara ${match.periods} perioder.` }, { status: 400 });
-      const eligible = await db.prepare("SELECT players.id FROM players JOIN participants ON participants.player_id = players.id WHERE players.id = ? AND participants.match_id = ? AND players.active = 1").bind(playerId, matchId).first<{ id: number }>();
+      const eligible = await db.prepare("SELECT players.id FROM players JOIN participants ON participants.player_id = players.id WHERE players.id = ? AND participants.match_id = ? AND players.active = 1 AND players.profile_id IN (SELECT id FROM player_profiles WHERE active = 1)").bind(playerId, matchId).first<{ id: number }>();
       if (!eligible) return Response.json({ error: "Spelaren måste vara aktiv och vald till matchtruppen." }, { status: 400 });
-      await db.prepare("INSERT INTO cards (match_id, period, player_id, card_type) VALUES (?, ?, ?, ?)").bind(matchId, period, playerId, cardType).run();
+      await db.prepare("INSERT INTO cards (match_id, period, player_id, card_type, player_name, number) SELECT ?, ?, ?, ?, name, number FROM players WHERE id = ?").bind(matchId, period, playerId, cardType, playerId).run();
       await db.prepare("UPDATE matches SET status = 'live' WHERE id = ?").bind(matchId).run();
       return Response.json({ success: true });
     }

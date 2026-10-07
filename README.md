@@ -93,6 +93,7 @@ node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1
 node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0006_bright_loki.sql
 node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0007_gifted_cerebro.sql
 node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0008_conscious_wolf_cub.sql
+node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0009_left_eternity.sql
 ```
 
 Starta sedan förhandsvisningen med `npm run dev`. Lokal databasdata sparas i `.wrangler/state`.
@@ -120,3 +121,9 @@ Bildverktyget erbjuder 20 egna SVG-maskotar, tio för fotboll och tio för inneb
 Admin-fliken Aktivitetslogg visar lyckade inloggningar, utloggningar och skrivningar till konton, lag, spelare, matcher, matchhändelser, familjekopplingar och profilbilder. Filtrera på användare, typ och datum; äldre poster hämtas i sidor om 50. Datumfilter och visning använder Europe/Stockholm.
 
 Loggen börjar när versionen installeras. Den lagras i SQL-databasen och behåller användarens namn även efter kontoborttagning. Dataändringen och dess loggpost skrivs i samma databastransaktion; en ändring loggas en gång per begäran. Vanliga läsningar och nekade begäranden loggas inte. Lösenord, tokens, sessionsdata och bildinnehåll ingår aldrig. Det finns ingen funktion för att ändra eller radera loggposter i appen.
+
+### Profilstatus och matchtrupp
+
+Spelarprofiler kan inaktiveras globalt och aktiveras igen utan att lagens tidigare aktiva status ändras. Permanent borttagning raderar profilbild, familje- och lagkopplingar samt trupputtagningar. Sparade mål och kort behålls med namn och nummer som historik. Tränare får endast hantera hela profilen om de har tillgång till alla dess lag.
+
+Spelartrupp på matchlistan öppnar matchinställningarna. Trupp och inställningar valideras och sparas i samma transaktion.
