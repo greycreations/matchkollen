@@ -282,7 +282,7 @@ export default function MatchkollenApp({ user, onLogout }: { user: AuthUser; onL
           {user.role === "admin" && <button className={tab === "logg" ? "nav-tab active" : "nav-tab"} onClick={() => setTab("logg")}>Aktivitetslogg</button>}
           {user.role === "admin" && <button className={tab === "installningar" ? "nav-tab active" : "nav-tab"} onClick={() => setTab("installningar")}>Inställningar</button>}
         </nav>
-        <div className="top-meta signed-in-meta"><ThemePicker/><Avatar kind="user" id={user.id} name={user.name} revision={selfPhotoRevision}/><span className="online-dot" />{user.name}<span className="role-pill">{roleLabel(user.role)}</span><button className="logout-button" onClick={onLogout}>Logga ut</button></div>
+        <div className="top-meta signed-in-meta"><ThemePicker/><Avatar kind="user" id={user.id} name={user.name} revision={selfPhotoRevision}/><span className="online-dot" /><span className="signed-in-name" title={user.name}>{user.name}</span><span className="role-pill">{roleLabel(user.role)}</span><button className="logout-button" onClick={onLogout}>Logga ut</button></div>
       </header>
 
       <div className="page-content">
