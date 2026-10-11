@@ -83,6 +83,21 @@ export async function POST(request: Request) {
     if (actor.role !== "admin") return json({ error: "Endast administratörer kan hantera användarkonton." }, 403);
 
     db = await auditedDatabase(db, actor, action, body, "accounts");
+    if (action === "changePassword") {
+      const currentPassword = typeof body.currentPassword === "string" ? body.currentPassword : "";
+      const newPassword = typeof body.newPassword === "string" ? body.newPassword : "";
+      if (!validPassword(newPassword) || newPassword !== body.confirmPassword) return json({ error: "Det nya lösenordet ska ha 12–256 tecken och anges likadant två gånger." }, 400);
+      const current = await db.prepare("SELECT password_salt AS salt, password_hash AS hash FROM users WHERE id = ?").bind(actor.id).first<{ salt: string; hash: string }>();
+      if (!current || !(await verifyPassword(currentPassword, current.salt, current.hash))) return json({ error: "Nuvarande lösenord stämmer inte." }, 403);
+      if (currentPassword === newPassword) return json({ error: "Välj ett annat lösenord än det nuvarande." }, 400);
+      const token = (request.headers.get("cookie") ?? "").split(";").map((value) => value.trim()).find((value) => value.startsWith("matchkollen_session="))?.slice("matchkollen_session=".length) ?? "";
+      const passwordData = await passwordRecord(newPassword);
+      await db.batch([
+        db.prepare("UPDATE users SET password_salt = ?, password_hash = ? WHERE id = ?").bind(passwordData.salt, passwordData.hash, actor.id),
+        db.prepare("DELETE FROM sessions WHERE user_id = ? AND token_hash <> ?").bind(actor.id, await digest(token)),
+      ]);
+      return json({ success: true });
+    }
     let assignedTeamIds: number[] = [];
     let childProfileIds: number[] = [];
     const role = body.role === "coach" ? "coach" : "parent";

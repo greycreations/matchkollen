@@ -168,4 +168,43 @@ html[data-theme="dark"] {
 .card-history-list li>div { display:flex; flex-direction:column; gap:4px; min-width:0; }
 .card-history-list small { color:var(--muted); font-size:11px; line-height:1.5; }
 .card-history-type { display:flex; align-items:center; gap:6px; }
+.period-overview { padding:20px; margin:18px 0; }
+.period-format>h3 { font-size:14px; margin:16px 0 10px; }
+.period-block { --period-color:#2783c6; border:1px solid var(--line); border-left:4px solid var(--period-color); border-radius:8px; margin:12px 0; overflow:hidden; }
+.period-2 { --period-color:#c27c00; }
+.period-3 { --period-color:#8752c6; }
+[data-theme="dark"] .period-1 { --period-color:#76c5fa; }
+[data-theme="dark"] .period-2 { --period-color:#efb343; }
+[data-theme="dark"] .period-3 { --period-color:#c29af7; }
+.period-summary,.period-block>summary { display:flex; flex-wrap:wrap; align-items:center; gap:12px; padding:12px; background:color-mix(in srgb,var(--period-color) 12%,transparent); font-size:13px; }
+.period-block>summary { cursor:pointer; }
+.period-heading { display:flex; gap:8px; align-items:center; font-weight:700; }
+.period-heading i { background:var(--period-color); width:10px; height:10px; border-radius:50%; }
+.period-score { font-weight:800; margin-left:auto; }
+.period-bars { padding:12px; }
+.period-bars>div { display:grid; grid-template-columns:105px minmax(30px,1fr) 30px; gap:8px; align-items:center; margin-bottom:8px; font-size:12px; }
+.period-track { height:15px; background:var(--blue-2); border-radius:4px; overflow:hidden; }
+.period-track i { display:block; height:100%; background:var(--period-color); border-radius:4px; }
+.period-track .period-away-bar { background:transparent; border:2px solid var(--period-color); box-sizing:border-box; }
+.period-bars small { color:var(--muted); }
+.period-events { list-style:none; margin:0; padding:0 12px 12px; }
+.period-events li { display:flex; align-items:center; flex-wrap:wrap; gap:10px; padding:10px 0; border-top:1px solid var(--line); font-size:12px; }
+.period-event-type { min-width:65px; }
+.event-team-badge { padding:4px 7px; border:1px solid var(--line); border-radius:6px; font-size:11px; }
+.opponent-team { border-style:dashed; }
+.historical-score { margin-left:auto; white-space:nowrap; }
+.admin-settings-grid { display:grid; grid-template-columns:1fr 1.3fr; gap:18px; }
+.settings-panel { padding:20px; min-width:0; }
+.settings-panel p { font-size:13px; line-height:1.6; color:var(--muted); }
+.settings-panel fieldset { border:0; padding:0; margin:0; min-width:0; display:flex; flex-direction:column; gap:12px; }
+.backup-upload { display:flex; flex-direction:column; gap:10px; margin:20px 0; font-size:13px; }
+.backup-upload input { max-width:100%; }
+.backup-preview { border:1px solid var(--line); border-radius:8px; padding:12px; }
+.backup-preview dl { display:flex; flex-wrap:wrap; gap:12px; }
+.backup-preview dl>div { display:flex; gap:6px; font-size:12px; }
+.backup-preview dd { margin:0; font-weight:700; }
+.settings-feedback { padding:12px; border:1px solid var(--line); border-radius:8px; }
+@media (max-width:760px) { .admin-settings-grid { grid-template-columns:1fr; } }
 @media (max-width:680px) { .card-history-list li { grid-template-columns:1fr; gap:8px; } }
+
+.period-event-details>summary { padding:10px 12px; font-size:12px; font-weight:700; cursor:pointer; border-top:1px solid var(--line); }

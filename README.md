@@ -129,3 +129,11 @@ Spelarprofiler kan inaktiveras globalt och aktiveras igen utan att lagens tidiga
 Spelartrupp på matchlistan öppnar matchinställningarna. Trupp och inställningar valideras och sparas i samma transaktion.
 
 Admin kan ta bort arkiverade lag permanent under Lag & spelare → Arkiverade lag. Lagets matcher, cuper, händelser, statistik och lagbehörigheter raderas tillsammans i en transaktion. Spelarprofiler och familjekopplingar behålls, liksom spelarens kopplingar till andra lag. Åtgärden kräver bekräftelse och sparas i aktivitetsloggen.
+
+### Periodhistorik, backup och adminlösenord
+
+Avslutade matcher visar hela händelseloggen grupperad per period (blå/orange/lila), med tydlig lagtillhörighet och ställningen efter varje mål. Statistik sammanställer två- och treperiodsmatcher separat och visar gjorda/insläppta mål och andel av egna mål. Befintliga data används; ingen matchminut tillkommer.
+
+Adminfliken Inställningar har eget lösenordsbyte med verifiering av nuvarande lösenord och upprepat nytt lösenord (12–256 tecken). Övriga sessioner avslutas; aktuell session behålls. Bytet loggas utan hemligheter.
+
+Backupformat 1 (databasschema 9) exporterar alla app-tabeller utom sessioner, samt ID-räknare. Exporten är en konsekvent databasögonblicksbild. Max 20 MB och 10 000 poster. JSON-filen innehåller lösenordshashar och personuppgifter och ska förvaras privat. Filen är inte krypterad. Import validerar struktur, version, fälttyper, unika nycklar och relationer, och visar antal poster och administratörskonton före bekräftelse. Återställning kräver nuvarande adminlösenord och ERSÄTT ALL DATA, ersätter data i en transaktion och avslutar alla sessioner. Logga in med ett konto/lösenord från backupen. Ingen sammanslagning av databaser stöds. Ta en aktuell backup först om du vill kunna återgå. För större installationer kopieras Docker-datavolymen när appen är stoppad.

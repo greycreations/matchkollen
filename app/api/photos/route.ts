@@ -1,3 +1,5 @@
+import { jpegSize } from "@/lib/jpeg";
+export { jpegSize } from "@/lib/jpeg";
 import { auditedDatabase } from "@/lib/activity-log";
 import { env } from "cloudflare:workers";
 import { getAuthUser, isSameOrigin } from "@/lib/auth";
@@ -21,25 +23,6 @@ export async function GET(request: Request) {
   if (!row?.photo) return new Response(null, { status: 404 });
   const bytes = Uint8Array.from(atob(row.photo), (char) => char.charCodeAt(0));
   return new Response(bytes, { headers: { "Content-Type": "image/jpeg", "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" } });
-}
-
-// Accept only small JPEGs with a valid square frame; SVG and original uploads are never stored.
-export function jpegSize(bytes: Uint8Array): number | null {
-  if (bytes[0] !== 255 || bytes[1] !== 216 || bytes.at(-2) !== 255 || bytes.at(-1) !== 217) return null;
-  let offset = 2;
-  while (offset + 8 < bytes.length) {
-    if (bytes[offset++] !== 255) return null;
-    const marker = bytes[offset++];
-    const length = bytes[offset] * 256 + bytes[offset + 1];
-    if (length < 2 || offset + length > bytes.length) return null;
-    if ([192, 193, 194].includes(marker)) {
-      const height = bytes[offset + 3] * 256 + bytes[offset + 4];
-      const width = bytes[offset + 5] * 256 + bytes[offset + 6];
-      return width === height && width >= 32 && width <= 512 ? width : null;
-    }
-    offset += length;
-  }
-  return null;
 }
 
 export async function POST(request: Request) {

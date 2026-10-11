@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { periodTotals, goalScores } from "../lib/period-stats.ts";
 import { DatabaseSync } from "node:sqlite";
 import { mkdir, readFile, readdir } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -32,6 +33,7 @@ function statement(sql, values = []) {
     async first() { return sqlite.prepare(sql).get(...values) ?? null; },
     async all() { return { results: sqlite.prepare(sql).all(...values) }; },
     async run() {
+      if (/^SELECT\b/i.test(sql.trim())) return { results: sqlite.prepare(sql).all(...values), meta: { changes: 0 } };
       const result = sqlite.prepare(sql).run(...values);
       return { meta: { changes: Number(result.changes), last_row_id: Number(result.lastInsertRowid) } };
     },
@@ -47,7 +49,7 @@ globalThis.__testEnv = { DB: {
 } };
 await mkdir("work/tests", { recursive: true });
 const routes = {};
-for (const name of ["auth", "data", "profiles", "photos", "activity"]) {
+for (const name of ["auth", "data", "profiles", "photos", "activity", "backup"]) {
   const outfile = resolve(`work/tests/${name}.mjs`);
   await build({ entryPoints: [`app/api/${name}/route.ts`], outfile, bundle: true, platform: "node", format: "esm", plugins: [{ name: "test-database", setup(builder) {
     builder.onResolve({ filter: /^cloudflare:workers$/ }, () => ({ path: "environment", namespace: "test" }));
@@ -417,9 +419,73 @@ assert.ok(sqlite.prepare("SELECT id FROM player_profiles WHERE id = ?").get(prof
 assert.deepEqual(sqlite.prepare("SELECT * FROM parent_children ORDER BY user_id,profile_id").all(), familyBeforePurge);
 assert.deepEqual(sqlite.prepare("SELECT id FROM matches ORDER BY id").all(), otherMatchesBefore);
 assert.ok(sqlite.prepare("SELECT id FROM activity_log WHERE action = 'purgeTeam'").get());
+// Mixed formats are isolated and both sides counted; histories include >8 goals.
+const periodFixtures = Array.from({ length: 12 }, (_, index) => ({ id: index + 1, matchId: index < 10 ? 1 : 2, period: index < 3 ? 1 : index < 8 ? 2 : index < 10 ? 3 : 1, side: index === 6 ? "away" : "home", playerName: "Test", number: null, createdAt: "2026-10-11T12:00:00Z" }));
+assert.deepEqual(periodTotals([{ id: 1, periods: 3 }, { id: 2, periods: 2 }], periodFixtures, 3).periods.map((row) => [row.home,row.away]), [[3,0],[4,1],[2,0]]);
+assert.equal(periodTotals([{ id: 1, periods: 3 }, { id: 2, periods: 2 }], periodFixtures, 2).periods[0].home, 2);
+assert.equal(goalScores(periodFixtures.filter((goal) => goal.matchId === 1)).get(10), "9–1");
+assert.equal(periodTotals([{ id: 1, periods: 3 }], [], 3).periods.every((row) => row.share === 0), true);
+// Backup preview is read-only; credentials are hashed and sessions excluded.
+assert.equal((await call("backup", "")).status, 401);
+const backupReader = await login("audit-reader@example.com");
+assert.equal((await call("backup", backupReader)).status, 403);
+const exportResponse = await call("backup", admin);
+assert.equal(exportResponse.status, 200, JSON.stringify(exportResponse.body));
+const savedBackup = exportResponse.body;
+assert.equal(savedBackup.tables.sessions, undefined);
+assert.equal(JSON.stringify(savedBackup).includes(password), false);
+const previewResponse = await call("backup", admin, { action: "validate", backup: savedBackup });
+assert.equal(previewResponse.status, 200, JSON.stringify(previewResponse.body));
+assert.equal(previewResponse.body.summary.matches, savedBackup.tables.matches.length);
+const badBackup = structuredClone(savedBackup); badBackup.tables.teams[0].sport_id = 999999;
+const backupSportsBefore = sqlite.prepare("SELECT * FROM sports").all();
+assert.equal((await call("backup", admin, { action: "validate", backup: badBackup })).status, 400);
+assert.deepEqual(sqlite.prepare("SELECT * FROM sports").all(), backupSportsBefore);
+assert.equal((await call("backup", backupReader, { action: "restore", backup: savedBackup })).status, 403);
+const invalidPhotoBackup = structuredClone(savedBackup); invalidPhotoBackup.tables.users[0].photo = "PHN2Zz4=";
+assert.equal((await call("backup", admin, { action: "validate", backup: invalidPhotoBackup })).status, 400);
+assert.equal((await call("backup", admin, { action: "validate", backup: { ...savedBackup, version: 2 } })).status, 400);
+const secondAdmin = await login("admin@example.com");
+const changedPassword = "New-admin-password-456";
+const passwordBody = { action: "changePassword", currentPassword: password, newPassword: changedPassword, confirmPassword: changedPassword };
+assert.equal((await call("auth", backupReader, passwordBody)).status, 403);
+assert.equal((await call("auth", admin, { ...passwordBody, currentPassword: "wrong" })).status, 403);
+assert.equal((await call("auth", admin, { ...passwordBody, confirmPassword: "different" })).status, 400);
+sqlite.exec("CREATE TRIGGER fail_password_audit BEFORE INSERT ON activity_log WHEN NEW.action = 'changePassword' BEGIN SELECT RAISE(ABORT, 'test password rollback'); END;");
+const passwordConsole = console.error; console.error = () => {};
+try { assert.equal((await call("auth", admin, passwordBody)).status, 503); } finally { console.error = passwordConsole; }
+assert.equal((await call("auth", secondAdmin)).body.user.role, "admin");
+sqlite.exec("DROP TRIGGER fail_password_audit;");
+assert.equal((await call("auth", admin, passwordBody)).status, 200);
+assert.equal((await call("auth", backupReader)).body.user.role, "parent");
+assert.equal((await call("auth", admin)).body.user.role, "admin");
+assert.equal((await call("auth", secondAdmin)).body.user, null);
+assert.equal((await call("auth", "", { action: "login", email: "admin@example.com", password })).status, 401);
+assert.equal((await call("auth", "", { action: "login", email: "admin@example.com", password: changedPassword })).status, 200);
+assert.equal(sqlite.prepare("SELECT description FROM activity_log WHERE action = 'changePassword'").get().description.includes(changedPassword), false);
+const restoreBody = { action: "restore", backup: savedBackup, fingerprint: previewResponse.body.fingerprint, confirm: "ERSÄTT ALL DATA", currentPassword: changedPassword };
+assert.equal((await call("backup", admin, { ...restoreBody, fingerprint: "invalid" })).status, 400);
+assert.equal((await call("backup", admin, { ...restoreBody, currentPassword: "wrong" })).status, 403);
+await mutate(admin, { action: "addSport", name: "Before restore" });
+const beforeRestore = sqlite.prepare("SELECT * FROM users ORDER BY id").all();
+sqlite.exec("CREATE TRIGGER fail_restore BEFORE INSERT ON users BEGIN SELECT RAISE(ABORT, 'test restore failure'); END;");
+assert.equal((await call("backup", admin, restoreBody)).status, 503);
+assert.deepEqual(sqlite.prepare("SELECT * FROM users ORDER BY id").all(), beforeRestore);
+assert.ok(sqlite.prepare("SELECT id FROM sports WHERE name = 'Before restore'").get());
+assert.equal((await call("auth", admin)).body.user.role, "admin");
+sqlite.exec("DROP TRIGGER fail_restore;");
+assert.equal((await call("backup", admin, restoreBody)).status, 200);
+assert.equal(sqlite.prepare("SELECT COUNT(*) AS total FROM sessions").get().total, 0);
+assert.equal(sqlite.prepare("SELECT id FROM sports WHERE name = 'Before restore'").get(), undefined);
+for (const table of Object.keys(savedBackup.tables).filter((table) => table !== "activity_log")) assert.deepEqual(JSON.parse(JSON.stringify(sqlite.prepare(`SELECT * FROM ${table} ORDER BY rowid`).all())), [...savedBackup.tables[table]].sort((a,b) => (a.id ?? a.user_id) - (b.id ?? b.user_id) || (a.team_id ?? a.profile_id ?? 0) - (b.team_id ?? b.profile_id ?? 0)));
+assert.ok(sqlite.prepare("SELECT id FROM activity_log WHERE action = 'restoreBackup'").get());
+assert.equal((await call("auth", "", { action: "login", email: "admin@example.com", password })).status, 200);
+assert.equal((await call("auth", "", { action: "login", email: "admin@example.com", password: changedPassword })).status, 401);
+const savedPlayerSequence = savedBackup.sequences.find((row) => row.name === "players").seq;
+assert.equal(sqlite.prepare("SELECT seq FROM sqlite_sequence WHERE name = 'players'").get().seq, savedPlayerSequence);
 sqlite.close();
 
 const avatarFiles = (await readdir("public/avatars")).filter((file) => file.endsWith(".svg"));
 assert.equal(avatarFiles.length, 20);
 for (const file of avatarFiles) { const svg = await readFile(`public/avatars/${file}`, "utf8"); assert.ok(svg.startsWith('<svg ')); assert.equal(svg.includes('<script'), false); }
-console.log("Passed: audit log, transactional rollback, admin access, Stockholm date filters, family relationships and authorization, sports avatars, SQL migrations, account roles, team isolation, all mutation ownership checks, read-only parents, card choices, cup inheritance, retained history, session revocation.");
+console.log("Passed: period statistics, complete event scoring, backup validation/round-trip/rollback, admin password changes and session isolation, audit log, transactional rollback, admin access, Stockholm date filters, family relationships and authorization, sports avatars, SQL migrations, account roles, team isolation, all mutation ownership checks, read-only parents, card choices, cup inheritance, retained history, session revocation.");
