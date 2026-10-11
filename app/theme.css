@@ -170,12 +170,12 @@ html[data-theme="dark"] {
 .card-history-type { display:flex; align-items:center; gap:6px; }
 .period-overview { padding:20px; margin:18px 0; }
 .period-format>h3 { font-size:14px; margin:16px 0 10px; }
-.period-block { --period-color:#2783c6; border:1px solid var(--line); border-left:4px solid var(--period-color); border-radius:8px; margin:12px 0; overflow:hidden; }
-.period-2 { --period-color:#c27c00; }
-.period-3 { --period-color:#8752c6; }
-[data-theme="dark"] .period-1 { --period-color:#76c5fa; }
-[data-theme="dark"] .period-2 { --period-color:#efb343; }
-[data-theme="dark"] .period-3 { --period-color:#c29af7; }
+.period-block { --period-color:var(--period-1-custom,#2783c6); border:1px solid var(--line); border-left:4px solid var(--period-color); border-radius:8px; margin:12px 0; overflow:hidden; }
+.period-2 { --period-color:var(--period-2-custom,#c27c00); }
+.period-3 { --period-color:var(--period-3-custom,#8752c6); }
+[data-theme="dark"] .period-1 { --period-color:var(--period-1-custom,#76c5fa); }
+[data-theme="dark"] .period-2 { --period-color:var(--period-2-custom,#efb343); }
+[data-theme="dark"] .period-3 { --period-color:var(--period-3-custom,#c29af7); }
 .period-summary,.period-block>summary { display:flex; flex-wrap:wrap; align-items:center; gap:12px; padding:12px; background:color-mix(in srgb,var(--period-color) 12%,transparent); font-size:13px; }
 .period-block>summary { cursor:pointer; }
 .period-heading { display:flex; gap:8px; align-items:center; font-weight:700; }
@@ -208,3 +208,9 @@ html[data-theme="dark"] {
 @media (max-width:680px) { .card-history-list li { grid-template-columns:1fr; gap:8px; } }
 
 .period-event-details>summary { padding:10px 12px; font-size:12px; font-weight:700; cursor:pointer; border-top:1px solid var(--line); }
+
+.period-color-settings { margin-bottom:18px; }
+.period-color-options { display:flex; flex-wrap:wrap; gap:18px; margin:14px 0; }
+.period-color-options label { display:flex; flex-direction:column; gap:8px; font-size:13px; }
+.period-color-options input[type="color"] { width:90px; height:42px; padding:3px; border:1px solid var(--line); border-radius:6px; background:var(--white); cursor:pointer; }
+.period-color-options code { color:var(--muted); font-size:12px; }

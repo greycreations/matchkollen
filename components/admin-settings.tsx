@@ -1,4 +1,6 @@
 "use client";
+import { ThemePicker } from "./theme";
+import { PeriodColorSettings } from "./period-colors";
 import { useState } from "react";
 
 type Summary = { users: number; teams: number; profiles: number; matches: number; goals: number; cards: number; logs: number };
@@ -18,7 +20,8 @@ export function AdminSettings({ onRestored }: { onRestored: () => void }) {
     setBusy(true); setError(""); setMessage("");
     try { await action(); } catch (cause) { setError(cause instanceof Error ? cause.message : "Åtgärden misslyckades."); } finally { setBusy(false); }
   }
-  return <><div className="page-heading"><div><p className="eyebrow">ADMINISTRATION</p><h1>Kontoinställningar & backup</h1></div></div>{error && <p role="alert" className="settings-feedback">{error}</p>}{message && <p role="status" className="settings-feedback">{message}</p>}
+  return <><div className="page-heading"><div><p className="eyebrow">ADMINISTRATION</p><h1>Inställningar</h1></div></div>{error && <p role="alert" className="settings-feedback">{error}</p>}{message && <p role="status" className="settings-feedback">{message}</p>}
+    <PeriodColorSettings themePicker={<ThemePicker/>}/>
     <div className="admin-settings-grid"><section className="panel settings-panel"><h2>Byt administratörens lösenord</h2><p>Denna inloggning behålls. Övriga sessioner för ditt konto avslutas.</p><form className="form-stack" onSubmit={(event) => { event.preventDefault(); void perform(async () => { await request("/api/auth", { action: "changePassword", ...password }); setPassword({ currentPassword: "", newPassword: "", confirmPassword: "" }); setMessage("Lösenordet är ändrat. Övriga sessioner har avslutats."); }); }}><fieldset disabled={busy}>
       <label>Nuvarande lösenord<input type="password" autoComplete="current-password" required maxLength={256} value={password.currentPassword} onChange={(event) => setPassword((old) => ({ ...old, currentPassword: event.target.value }))}/></label>
       <label>Nytt lösenord<input type="password" autoComplete="new-password" required minLength={12} maxLength={256} value={password.newPassword} onChange={(event) => setPassword((old) => ({ ...old, newPassword: event.target.value }))}/></label>

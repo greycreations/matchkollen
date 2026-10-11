@@ -1,13 +1,14 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
+import { PeriodColorProvider } from "./period-colors";
 import { ThemeProvider, useTheme } from "next-themes";
 import { Moon, Sun, Monitor } from "lucide-react";
 
 const subscribe = () => () => {};
 
 export function AppTheme({ children }: { children: React.ReactNode }) {
-  return <ThemeProvider attribute="data-theme" storageKey="matchkollen-theme" defaultTheme="system" enableSystem>{children}</ThemeProvider>;
+  return <ThemeProvider attribute="data-theme" storageKey="matchkollen-theme" defaultTheme="system" enableSystem><PeriodColorProvider>{children}</PeriodColorProvider></ThemeProvider>;
 }
 
 export function ThemePicker() {
